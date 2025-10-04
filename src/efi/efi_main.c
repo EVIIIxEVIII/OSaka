@@ -1,0 +1,52 @@
+#include <efi.h>
+#include <efilib.h>
+
+EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
+    InitializeLib(ImageHandle, SystemTable);
+    Print(L"Loading the kernel!\r\n");
+
+
+    EFI_FILE_PROTOCOL *root, *kernel_file;
+    EFI_LOADED_IMAGE_PROTOCOL *loaded_image;
+    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *filesystem;
+
+
+    SystemTable->BootServices->HandleProtocol(
+        ImageHandle,
+        &gEfiLoadedImageProtocolGuid,
+        (void**)&loaded_image
+    );
+
+    SystemTable->BootServices->HandleProtocol(
+        loaded_image->DeviceHandle,
+        &gEfiSimpleFileSystemProtocolGuid,
+        (void**)&filesystem
+    );
+
+    filesystem->OpenVolume(filesystem, &root);
+
+    EFI_STATUS status = root->Open(
+        root,
+        &kernel_file,
+        L"kernel.bin",
+        EFI_FILE_MODE_READ,
+        0
+    );
+
+    if (EFI_ERROR(status)) {
+        Print(L"Failed to open kernel file\r\n");
+        return status;
+    }
+
+    EFI_FILE_INFO *file_info;
+    UINTN file_info_size = sizeof(EFI_FILE_INFO) + 512;
+    file_info = AllocatePool(file_info_size);
+    kernel_file->GetInfo(kernel_file, &gEfiFileInfoGuid, &file_info_size, file_info);
+    UINTN kernel_size = file_info->FileSize;
+    FreePool(file_info);
+
+    Print(L"Kernel size: %lu bytes \r\n", kernel_size);
+
+    while(1);
+}
+
