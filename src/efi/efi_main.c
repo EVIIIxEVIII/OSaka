@@ -1,51 +1,40 @@
 #include <efi.h>
 #include <efilib.h>
 
-EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
-    InitializeLib(ImageHandle, SystemTable);
+EFI_FILE_HANDLE get_volume(EFI_HANDLE image) {
+    EFI_LOADED_IMAGE_PROTOCOL *loaded_image = NULL;
+    EFI_GUID lip_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    EFI_FILE_IO_INTERFACE *io_volume;
+    EFI_GUID fsGuid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    EFI_FILE_HANDLE volume;
+
+    uefi_call_wrapper(BS->HandleProtocol, 3, image, &lip_guid, (void **) &loaded_image);
+    uefi_call_wrapper(BS->HandleProtocol, 3, loaded_image->DeviceHandle, &fsGuid, (VOID*)&io_volume);
+    uefi_call_wrapper(io_volume->OpenVolume, 2, io_volume, &volume);
+
+    return volume;
+}
+
+UINT64 file_size(EFI_FILE_HANDLE file_handle) {
+    EFI_FILE_INFO *file_info = LibFileInfo(file_handle);
+    UINT64 size = file_info->FileSize;
+    FreePool(file_info);
+    return size;
+}
+
+EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
+    InitializeLib(image_handle, system_table);
     Print(L"Loading the kernel!\r\n");
 
+    EFI_FILE_HANDLE volume = get_volume(image_handle);
+    Print(L"Loaded the volume!\r\n");
 
-    EFI_FILE_PROTOCOL *root, *kernel_file;
-    EFI_LOADED_IMAGE_PROTOCOL *loaded_image;
-    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *filesystem;
+    CHAR16 *kernel_file_name = L"kernel.bin";
+    EFI_FILE_HANDLE kernel_handle;
 
+    uefi_call_wrapper(volume->Open, 5, volume, &kernel_handle, kernel_file_name, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY | EFI_FILE_HIDDEN | EFI_FILE_SYSTEM);
 
-    SystemTable->BootServices->HandleProtocol(
-        ImageHandle,
-        &gEfiLoadedImageProtocolGuid,
-        (void**)&loaded_image
-    );
-
-    SystemTable->BootServices->HandleProtocol(
-        loaded_image->DeviceHandle,
-        &gEfiSimpleFileSystemProtocolGuid,
-        (void**)&filesystem
-    );
-
-    filesystem->OpenVolume(filesystem, &root);
-
-    EFI_STATUS status = root->Open(
-        root,
-        &kernel_file,
-        L"kernel.bin",
-        EFI_FILE_MODE_READ,
-        0
-    );
-
-    if (EFI_ERROR(status)) {
-        Print(L"Failed to open kernel file\r\n");
-        return status;
-    }
-
-    EFI_FILE_INFO *file_info;
-    UINTN file_info_size = sizeof(EFI_FILE_INFO) + 512;
-    file_info = AllocatePool(file_info_size);
-    kernel_file->GetInfo(kernel_file, &gEfiFileInfoGuid, &file_info_size, file_info);
-    UINTN kernel_size = file_info->FileSize;
-    FreePool(file_info);
-
-    Print(L"Kernel size: %lu bytes \r\n", kernel_size);
+    Print(L"Opened the kernel, size: %lu!\r\n", file_size(kernel_handle));
 
     while(1);
 }
