@@ -1,0 +1,29 @@
+[
+  {
+    "arguments": [
+      "/usr/lib/ccache/gcc",
+      "-I/home/alderson/Projects/Mine/gnu-efi/inc",
+      "-fpic",
+      "-ffreestanding",
+      "-fno-stack-protector",
+      "-fno-stack-check",
+      "-fshort-wchar",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-c",
+      "-I",
+      "/usr/local/cuda/include",
+      "-I",
+      "/usr/local/cuda/include",
+      "-I",
+      ".",
+      "-o",
+      "build/main.o",
+      "main.c"
+    ],
+    "directory": "/home/alderson/Projects/Mine/os/bootloader",
+    "file": "/home/alderson/Projects/Mine/os/bootloader/main.c",
+    "output": "/home/alderson/Projects/Mine/os/bootloader/build/main.o"
+  }
+]
