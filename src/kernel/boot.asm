@@ -9,7 +9,6 @@ _start:
     mov dx, 0xE9
     mov al, 'X'
     out dx, al
-    cli
 
     mov     rsp, stack_top
 

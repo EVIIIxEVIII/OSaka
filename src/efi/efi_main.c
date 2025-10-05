@@ -1,6 +1,30 @@
-#include "x86_64/efibind.h"
 #include <efi.h>
 #include <efilib.h>
+
+struct framebuffer_info {
+    void   *base;
+    UINT32  width;
+    UINT32  height;
+    UINT32  pixels_per_scanline;
+};
+
+static void dump_bytes(void *addr, UINTN len) {
+    UINT8 *p = (UINT8*)addr;
+    for (UINTN i = 0; i < len; i += 16) {
+        Print(L"%08lx: ", (UINTN)addr + i);
+        for (UINTN j = 0; j < 16 && i + j < len; ++j)
+            Print(L"%02x ", p[i + j]);
+        Print(L"\r\n");
+    }
+}
+
+static EFI_GRAPHICS_OUTPUT_PROTOCOL *get_gop(void) {
+    EFI_GUID gop_guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL *gop;
+
+    uefi_call_wrapper(BS->LocateProtocol, 3, &gop_guid, NULL, (void**)&gop);
+    return gop;
+}
 
 EFI_FILE_HANDLE get_volume(EFI_HANDLE image) {
     EFI_LOADED_IMAGE_PROTOCOL *loaded_image = NULL;
@@ -42,28 +66,29 @@ EFI_STATUS exit_boot(EFI_HANDLE image) {
     return st;
 }
 
-static void dump_bytes(void *addr, UINTN len) {
-    UINT8 *p = (UINT8*)addr;
-    for (UINTN i = 0; i < len; i += 16) {
-        Print(L"%08lx: ", (UINTN)addr + i);
-        for (UINTN j = 0; j < 16 && i + j < len; ++j)
-            Print(L"%02x ", p[i + j]);
-        Print(L"\r\n");
-    }
-}
 
 EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     InitializeLib(image_handle, system_table);
-    Print(L"Loading the kernel!\r\n");
+    Print(L"Loading the kernel...\r\n");
+
+    EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = get_gop();
+    if (!gop) {
+        Print(L"GOP not found\r\n");
+        return EFI_UNSUPPORTED;
+    }
+
+    struct framebuffer_info framebuffer;
+    framebuffer.base = (void*) gop->Mode->FrameBufferBase;
+    framebuffer.width = gop->Mode->Info->HorizontalResolution;
+    framebuffer.height = gop->Mode->Info->VerticalResolution;
+    framebuffer.pixels_per_scanline = gop->Mode->Info->PixelsPerScanLine;
 
     EFI_FILE_HANDLE volume = get_volume(image_handle);
-    Print(L"Loaded the volume!\r\n");
 
     CHAR16 *kernel_file_name = L"kernel.bin";
     EFI_FILE_HANDLE kernel_handle;
 
     uefi_call_wrapper(volume->Open, 5, volume, &kernel_handle, kernel_file_name, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY | EFI_FILE_HIDDEN | EFI_FILE_SYSTEM);
-    Print(L"Opened the kernel file!\r\n");
 
     UINT64 kernel_size = file_size(kernel_handle);
     UINT8  *buffer     = AllocatePool(kernel_size);
@@ -71,10 +96,8 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     uefi_call_wrapper(kernel_handle->Read, 3, kernel_handle, &kernel_size, buffer);
     uefi_call_wrapper(kernel_handle->Close, 1, kernel_handle);
 
-    Print(L"Loaded the kernel into memory!\r\n");
-
     EFI_PHYSICAL_ADDRESS phys = 0x100000;
-    UINTN pages = (UINTN)((kernel_size + 0xFFF) >> 12); // add 4095 and dividde by 2^12
+    UINTN pages = (UINTN)((kernel_size + 0xFFF) >> 12); // add 4095 and dividde by 2^12 (4096)
     EFI_STATUS st_alloc = uefi_call_wrapper(BS->AllocatePages, 4,
                         AllocateAddress, EfiLoaderData, pages, &phys);
 
@@ -83,14 +106,12 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
         return st_alloc;
     }
 
-    Print(L"Allocated pages at 0x100000!\r\n");
     uefi_call_wrapper(BS->CopyMem, 3, (VOID*)(UINTN)phys, buffer, (UINTN)kernel_size);
     FreePool(buffer);
 
-    Print(L"Copied the kernel into the allocated memory!\r\n");
     uefi_call_wrapper(volume->Close, 1, volume);
 
-    Print(L"Closed the volume!\r\n");
+    Print(L"Exiting boot...\r\n");
 
     EFI_STATUS st_exit = exit_boot(image_handle);
     if (EFI_ERROR(st_exit)) {
@@ -98,9 +119,9 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
         return st_exit;
     }
 
-    typedef void (*kentry_t)(void);
+    typedef void (*kentry_t)(struct framebuffer_info*);
     kentry_t kentry = (kentry_t)(UINTN)0x100000;
-    kentry();
+    kentry(&framebuffer);
 
     return EFI_SUCCESS;
 }

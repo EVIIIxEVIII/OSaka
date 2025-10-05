@@ -22,7 +22,7 @@ EFI_LIBS    := -lgnuefi -lefi
 EFI_OBJCOPY := -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym \
     -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-$(ARCH) --subsystem=10
 
-K_CFLAGS := -ffreestanding -fno-pic -fno-stack-protector -mno-red-zone -Wall -Wextra
+K_CFLAGS := -ffreestanding -fno-pic -fno-stack-protector -mno-red-zone -Wall -Wextra -masm=intel
 K_LDS    := $(KSRC)/kernel.ld
 
 EFI_SRCS := $(wildcard $(EFISRC)/*.c)
