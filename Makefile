@@ -7,6 +7,7 @@ EFISRC   := src/efi
 KSRC     := src/kernel
 ISODIR   := iso/EFI/BOOT
 IMG      := fat.img
+NASM 	 := nasm
 
 INC            := $(GNUEFI)/inc
 LIBDIR         := $(GNUEFI)/$(ARCH)/lib
@@ -30,9 +31,9 @@ EFI_SO   := $(BUILDDIR)/efi/main.so
 EFI_BIN  := $(BUILDDIR)/efi/BOOTX64.EFI
 
 K_CSRCS := $(wildcard $(KSRC)/*.c)
-K_ASMS  := $(wildcard $(KSRC)/*.s)
+K_ASMS  := $(wildcard $(KSRC)/*.asm)
 K_OBJS  := $(patsubst $(KSRC)/%.c,$(BUILDDIR)/kernel/%.o,$(K_CSRCS)) \
-           $(patsubst $(KSRC)/%.s,$(BUILDDIR)/kernel/%.o,$(K_ASMS))
+           $(patsubst $(KSRC)/%.asm,$(BUILDDIR)/kernel/%.o,$(K_ASMS))
 K_ELF   := $(BUILDDIR)/kernel/kernel.elf
 K_BIN   := $(BUILDDIR)/kernel/kernel.bin
 
@@ -51,7 +52,11 @@ image: all
 	mcopy -i $(IMG) $(K_BIN) ::/kernel.bin
 
 run: image
-	qemu-system-x86_64 -bios $(OVMF) -drive format=raw,file=$(IMG)
+	qemu-system-x86_64 \
+		-bios $(OVMF) \
+		-drive format=raw,file=$(IMG) \
+		-device isa-debugcon,iobase=0xE9,chardev=dbg \
+		-chardev stdio,id=dbg
 
 clean:
 	rm -rf $(BUILDDIR) $(dir $(ISODIR)) $(IMG)
@@ -71,8 +76,8 @@ $(EFI_BIN): $(EFI_SO)
 $(BUILDDIR)/kernel/%.o: $(KSRC)/%.c | $(BUILDDIR)/kernel
 	gcc $(K_CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/kernel/%.o: $(KSRC)/%.s | $(BUILDDIR)/kernel
-	gcc $(K_CFLAGS) -c $< -o $@
+$(BUILDDIR)/kernel/%.o: $(KSRC)/%.asm | $(BUILDDIR)/kernel
+	$(NASM) -f elf64 $< -o $@
 
 $(K_ELF): $(K_OBJS) $(K_LDS)
 	ld -T $(K_LDS) -nostdlib $(K_OBJS) -o $@
