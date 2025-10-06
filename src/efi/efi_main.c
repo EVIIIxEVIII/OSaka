@@ -71,7 +71,7 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
         return EFI_UNSUPPORTED;
     }
 
-    struct framebuffer_info framebuffer;
+    framebuffer_info framebuffer;
     framebuffer.base = (void*) gop->Mode->FrameBufferBase;
     framebuffer.width = gop->Mode->Info->HorizontalResolution;
     framebuffer.height = gop->Mode->Info->VerticalResolution;
@@ -118,7 +118,7 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
         return st_exit;
     }
 
-    typedef void (*kentry_t)(struct framebuffer_info*);
+    typedef void (*kentry_t)(framebuffer_info*);
     kentry_t kentry = (kentry_t)(UINTN)0x100000;
     kentry(&framebuffer);
 
