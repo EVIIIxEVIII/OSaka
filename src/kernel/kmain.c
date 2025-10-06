@@ -1,13 +1,20 @@
+#include "shared.h"
 
+void print_debug(char c) {
+    __asm__ __volatile__(
+        "out dx, al" :
+        : "a"(c), "d"(0xE9)
+    );
 
-void print_debug() {
-    __asm__ __volatile__("mov dx, 0xE9");
-    __asm__ __volatile__("mov al, 'X'");
-    __asm__ __volatile__("out dx, al");
 }
 
-void kmain(void) {
+void kmain(struct framebuffer_info *fb) {
+    uint32_t *base = (uint32_t*)fb->base;
 
-    print_debug();
+    for (int i = 0; i < 100000; ++i) {
+        base[i] = 0xFFFFFFFF;
+    }
+
+    print_debug('Y');
 
 }

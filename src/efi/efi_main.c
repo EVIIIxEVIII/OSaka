@@ -1,12 +1,6 @@
 #include <efi.h>
 #include <efilib.h>
-
-struct framebuffer_info {
-    void   *base;
-    UINT32  width;
-    UINT32  height;
-    UINT32  pixels_per_scanline;
-};
+#include "shared.h"
 
 static void dump_bytes(void *addr, UINTN len) {
     UINT8 *p = (UINT8*)addr;
@@ -81,10 +75,15 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     framebuffer.base = (void*) gop->Mode->FrameBufferBase;
     framebuffer.width = gop->Mode->Info->HorizontalResolution;
     framebuffer.height = gop->Mode->Info->VerticalResolution;
+    framebuffer.pitch = framebuffer.pixels_per_scanline * 4;
     framebuffer.pixels_per_scanline = gop->Mode->Info->PixelsPerScanLine;
 
-    EFI_FILE_HANDLE volume = get_volume(image_handle);
+    uint32_t *base = (uint32_t*)framebuffer.base;
+    for (int i = 0; i < 100000; ++i) {
+        base[i] = 0xFF00FF00;
+    }
 
+    EFI_FILE_HANDLE volume = get_volume(image_handle);
     CHAR16 *kernel_file_name = L"kernel.bin";
     EFI_FILE_HANDLE kernel_handle;
 
@@ -97,7 +96,7 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     uefi_call_wrapper(kernel_handle->Close, 1, kernel_handle);
 
     EFI_PHYSICAL_ADDRESS phys = 0x100000;
-    UINTN pages = (UINTN)((kernel_size + 0xFFF) >> 12); // add 4095 and dividde by 2^12 (4096)
+    UINTN pages = (UINTN)((kernel_size + 0xFFF) >> 12); // add 4095 and dividde by 2^12
     EFI_STATUS st_alloc = uefi_call_wrapper(BS->AllocatePages, 4,
                         AllocateAddress, EfiLoaderData, pages, &phys);
 

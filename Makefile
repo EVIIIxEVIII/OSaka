@@ -15,14 +15,14 @@ GNUEFI_LIBDIR  := $(GNUEFI)/$(ARCH)/gnuefi
 CRT0           := $(GNUEFI_LIBDIR)/crt0-efi-$(ARCH).o
 LDS            := $(GNUEFI)/gnuefi/elf_$(ARCH)_efi.lds
 
-EFI_CFLAGS := -I$(INC) -fpic -ffreestanding -fno-stack-protector -fno-stack-check \
+EFI_CFLAGS := -I$(INC) -Isrc/shared -fpic -ffreestanding -fno-stack-protector -fno-stack-check \
     -fshort-wchar -mno-red-zone -Wall -Wextra
 EFI_LDFLAGS := -shared -Bsymbolic -L$(LIBDIR) -L$(GNUEFI_LIBDIR) -T$(LDS)
 EFI_LIBS    := -lgnuefi -lefi
 EFI_OBJCOPY := -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym \
     -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-$(ARCH) --subsystem=10
 
-K_CFLAGS := -ffreestanding -fno-pic -fno-stack-protector -mno-red-zone -Wall -Wextra -masm=intel
+K_CFLAGS := -Isrc/shared -ffreestanding -fno-pic -fno-stack-protector -mno-red-zone -Wall -Wextra -masm=intel
 K_LDS    := $(KSRC)/kernel.ld
 
 EFI_SRCS := $(wildcard $(EFISRC)/*.c)
@@ -37,7 +37,7 @@ K_OBJS  := $(patsubst $(KSRC)/%.c,$(BUILDDIR)/kernel/%.o,$(K_CSRCS)) \
 K_ELF   := $(BUILDDIR)/kernel/kernel.elf
 K_BIN   := $(BUILDDIR)/kernel/kernel.bin
 
-.DEFAULT_GOAL := run
+.DEFAULT_GOAL := image
 .PHONY: all image run clean
 
 all: $(EFI_BIN) $(K_BIN)
