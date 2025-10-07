@@ -3,7 +3,9 @@
 
 extern void set_idt_gate(uint8_t vec, void* handler, uint16_t selector, uint8_t type_attr);
 extern void load_idt();
+extern void load_gdt64();
 extern void keyboard_stub();
+extern void isr_test_stub();
 
 framebuffer_info* global_fb;
 int cursorX = 0;
@@ -72,7 +74,6 @@ void putpx(uint64_t x, uint64_t y, uint32_t col) {
     base[y * global_fb->width + x] = col;
 }
 
-
 void putchar(char c) {
     unsigned char* charBitmap = font8x16[(uint8_t)c];
 
@@ -101,7 +102,7 @@ void printk(const char* str) {
 }
 
 void keyboard_handler() {
-    printk("Test");
+    printk("X");
 }
 
 static void clear_screen() {
@@ -117,12 +118,17 @@ void kmain(framebuffer_info *fb) {
     global_fb = fb;
     clear_screen();
 
+    load_gdt64();
+    set_idt_gate(0x40, isr_test_stub, 0x08, 0x8E);
     set_idt_gate(0x21, keyboard_stub, 0x08, 0x8E);
     load_idt();
+
     pic_remap_20_28();
     pic_mask_all();
     pic_unmask_irq(1);
     __asm__ __volatile__("sti");
+
+    __asm__ __volatile__("int 0x21");
 
     printk("Hello World!");
 }

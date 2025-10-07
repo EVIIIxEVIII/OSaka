@@ -1,4 +1,5 @@
 global keyboard_stub
+global isr_test_stub
 extern keyboard_handler
 
 section .text
@@ -43,9 +44,15 @@ section .text
 keyboard_stub:
     PUSH_REGS
 
-    mov al, 'C'
-    out 0xE9, al
-    ;call    keyboard_handler
+    call    keyboard_handler
 
     POP_REGS
+    iretq
+
+isr_test_stub:
+    push rax
+    mov  al, 'I'
+    out  0xE9, al
+    pop  rax
+
     iretq

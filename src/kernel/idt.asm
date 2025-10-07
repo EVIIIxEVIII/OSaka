@@ -1,8 +1,10 @@
 BITS 64
 global load_idt
 global set_idt_gate
+default rel
 
 section .data
+
 align 16
 idt_table:
     times 256 dq 0, 0
@@ -18,7 +20,7 @@ load_idt:
     mov al, 'A'
     out 0xE9, al
 
-    lidt [idtr]
+    lidt [rel idtr]
     ret
 
 ; void set_idt_gate(uint8_t vec, void* handler, uint16_t selector, uint8_t type_attr)
@@ -62,5 +64,3 @@ set_idt_gate:
 
     mov   dword [r8 + 12], 0
     ret
-
-
