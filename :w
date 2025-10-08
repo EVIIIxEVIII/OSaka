@@ -53,8 +53,8 @@ image: all
 
 run: image
 	qemu-system-x86_64 \
+		-bios $(OVMF) uuu
 		-M pc \
-		-bios $(OVMF) \
 		-drive format=raw,file=$(IMG),if=ide \
 		-device isa-debugcon,iobase=0xE9,chardev=dbg \
 		-chardev stdio,id=dbg

@@ -27,6 +27,7 @@ extern void load_idt();
 extern void load_gdt64();
 extern void keyboard_stub();
 extern void isr_test_stub();
+extern void timer_stub();
 
 static inline uint8_t inb8(uint16_t p){ uint8_t v; __asm__ volatile("in al, dx":"=a"(v):"d"(p)); return v; }
 static inline unsigned char inb(unsigned short port) {
@@ -169,8 +170,8 @@ void PIC_remap(int offset1, int offset2) {
     outb(PIC2_DATA, ICW4_8086);
     io_wait();
 
-    outb(PIC1_DATA, 0);
-    outb(PIC2_DATA, 0);
+    outb(PIC1_DATA, 0x0);   // master PIC: unmask IRQ1 only
+    outb(PIC2_DATA, 0x0);   // slave PIC: all masked
 }
 
 void kmain(framebuffer_info *fb) {
@@ -181,14 +182,15 @@ void kmain(framebuffer_info *fb) {
     load_gdt64();
 
     PIC_remap(0x20, 0x28);
+    set_idt_gate(0x20, timer_stub, 0x08, 0x8E);
     set_idt_gate(0x21, keyboard_stub, 0x08, 0x8E);
-    //set_idt_gate(0x40, isr_test_stub, 0x08, 0x8E);
+    set_idt_gate(0x29, keyboard_stub, 0x08, 0x8E);
 
     load_idt();
-
     __asm__ __volatile__("sti");
-    __asm__ __volatile__("int 0x21");
 
+    __asm__ __volatile__("int 0x20");
+    __asm__ __volatile__("int 0x21");
 
     printk("Hello World!");
 }

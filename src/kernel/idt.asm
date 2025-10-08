@@ -1,6 +1,7 @@
 BITS 64
 global load_idt
 global set_idt_gate
+global init_8259
 default rel
 
 section .data

@@ -1,5 +1,6 @@
 global keyboard_stub
 global isr_test_stub
+global timer_stub
 extern keyboard_handler
 
 section .text
@@ -41,20 +42,26 @@ section .text
     pop rax
 %endmacro
 
+timer_stub:
+    push rax
+    mov al, 'T'
+    out 0xE9, al
+    mov al, 0x20
+    out 0x20, al
+    pop rax
+    iretq
+
 keyboard_stub:
     push rax
     push rdx
 
-    ; read scancode to deassert IRQ1
     mov     dx, 0x60
     in      al, dx
 
-    ; debug: write 'K' to QEMU port 0xE9
     mov     dx, 0xE9
     mov     al, 'K'
     out     dx, al
 
-    ; EOI to master PIC
     mov     dx, 0x20
     mov     al, 0x20
     out     dx, al
