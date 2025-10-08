@@ -42,11 +42,25 @@ section .text
 %endmacro
 
 keyboard_stub:
-    PUSH_REGS
+    push rax
+    push rdx
 
-    call    keyboard_handler
+    ; read scancode to deassert IRQ1
+    mov     dx, 0x60
+    in      al, dx
 
-    POP_REGS
+    ; debug: write 'K' to QEMU port 0xE9
+    mov     dx, 0xE9
+    mov     al, 'K'
+    out     dx, al
+
+    ; EOI to master PIC
+    mov     dx, 0x20
+    mov     al, 0x20
+    out     dx, al
+
+    pop     rdx
+    pop     rax
     iretq
 
 isr_test_stub:
