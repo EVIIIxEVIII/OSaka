@@ -1,6 +1,35 @@
 #include <efi.h>
 #include <efilib.h>
+#include "efiapi.h"
 #include "shared.h"
+
+#define PACK __attribute__((packed))
+
+typedef struct PACK {
+    char     Signature[8];
+    uint8_t  Checksum;
+    char     OemId[6];
+    uint8_t  Revision;
+    uint32_t RsdtAddress;
+    uint32_t Length;
+    uint64_t XsdtAddress;
+    uint8_t  ExtendedChecksum;
+    uint8_t  Reserved[3];
+} RSDP;
+
+typedef struct PACK {
+    char     Signature[4];
+    uint32_t Length;
+    uint8_t  Revision, Checksum;
+    char     OemId[6];
+    char     OemTableId[8];
+    uint32_t OemRevision, CreatorId, CreatorRevision;
+} SDT_HDR;
+
+typedef struct PACK {
+    SDT_HDR  Hdr;
+    uint64_t Entry[];
+} XSDT;
 
 static void dump_bytes(void *addr, UINTN len) {
     UINT8 *p = (UINT8*)addr;
@@ -60,6 +89,59 @@ EFI_STATUS exit_boot(EFI_HANDLE image) {
     return st;
 }
 
+static int checksum_ok(const void *p, UINTN len) {
+    const uint8_t *b = p; uint8_t s = 0;
+    for (UINTN i = 0; i < len; i++) s += b[i];
+    return s == 0;
+}
+
+static void* get_rsdp(EFI_SYSTEM_TABLE* system_table) {
+    for (UINTN i = 0; i < system_table->NumberOfTableEntries; ++i) {
+        EFI_CONFIGURATION_TABLE* t = &system_table->ConfigurationTable[i];
+
+        static EFI_GUID Acpi20Guid = ACPI_20_TABLE_GUID;
+        static EFI_GUID AcpiGuid = ACPI_TABLE_GUID;
+
+        if (!CompareGuid(&t->VendorGuid, &Acpi20Guid) && !CompareGuid(&t->VendorGuid, &AcpiGuid)) {
+            continue;
+        }
+
+        RSDP* rsdp = (RSDP*)t->VendorTable;
+        if (rsdp && checksum_ok(rsdp, rsdp->Revision >= 2 ? rsdp->Length : 20)) {
+            return rsdp;
+        }
+    }
+
+    return NULL;
+}
+
+static SDT_HDR* find_in_xsdt(XSDT *xsdt, const char sig[4]) {
+    if (!xsdt || !checksum_ok(xsdt, xsdt->Hdr.Length)) return NULL;
+    UINTN n = (xsdt->Hdr.Length - sizeof(SDT_HDR)) / sizeof(uint64_t);
+    for (UINTN i = 0; i < n; i++) {
+        SDT_HDR *h = (SDT_HDR*)(UINTN)xsdt->Entry[i];
+        if (!h) continue;
+        if (!CompareMem(h->Signature, sig, 4) && checksum_ok(h, h->Length))
+            return h;
+    }
+    return NULL;
+}
+
+BOOLEAN fill_acpi_addrs(EFI_SYSTEM_TABLE *st, acpi *acpi_) {
+    RSDP *rsdp = get_rsdp(st);
+    if (!rsdp) return FALSE;
+
+    uint64_t xsdt_pa = (rsdp->Revision >= 2) ? rsdp->XsdtAddress
+                                             : (uint64_t)(uint32_t)rsdp->RsdtAddress; /* works: XSDT preferred */
+    XSDT *xsdt = (XSDT*)(UINTN)xsdt_pa;
+    SDT_HDR *madt = find_in_xsdt(xsdt, "APIC");
+    if (!madt) return FALSE;
+
+    acpi_->rsdp = (uint64_t)(UINTN)rsdp;
+    acpi_->xsdt = (uint64_t)(UINTN)xsdt;
+    acpi_->madt = (uint64_t)(UINTN)madt;
+    return TRUE;
+}
 
 EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     InitializeLib(image_handle, system_table);
@@ -77,6 +159,13 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     framebuffer.height = gop->Mode->Info->VerticalResolution;
     framebuffer.pitch = framebuffer.pixels_per_scanline * 4;
     framebuffer.pixels_per_scanline = gop->Mode->Info->PixelsPerScanLine;
+
+    acpi acpi_data;
+    fill_acpi_addrs(system_table, &acpi_data);
+
+    uefi_data uefi_dt;
+    uefi_dt.fb = &framebuffer;
+    uefi_dt.acpi_data = &acpi_data;
 
     uint32_t *base = (uint32_t*)framebuffer.base;
     for (int i = 0; i < 100000; ++i) {
@@ -118,9 +207,9 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
         return st_exit;
     }
 
-    typedef void (*kentry_t)(framebuffer_info*);
+    typedef void (*kentry_t)(uefi_data*);
     kentry_t kentry = (kentry_t)(UINTN)0x100000;
-    kentry(&framebuffer);
+    kentry(&uefi_dt);
 
     return EFI_SUCCESS;
 }
