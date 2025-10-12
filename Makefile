@@ -30,9 +30,9 @@ EFI_OBJS := $(patsubst $(EFISRC)/%.c,$(BUILDDIR)/efi/%.o,$(EFI_SRCS))
 EFI_SO   := $(BUILDDIR)/efi/main.so
 EFI_BIN  := $(BUILDDIR)/efi/BOOTX64.EFI
 
-K_CSRCS := $(wildcard $(KSRC)/*.c)
+K_CSRCS := $(wildcard $(KSRC)/*.cpp)
 K_ASMS  := $(wildcard $(KSRC)/*.asm)
-K_OBJS  := $(patsubst $(KSRC)/%.c,$(BUILDDIR)/kernel/%.o,$(K_CSRCS)) \
+K_OBJS  := $(patsubst $(KSRC)/%.cpp,$(BUILDDIR)/kernel/%.o,$(K_CSRCS)) \
            $(patsubst $(KSRC)/%.asm,$(BUILDDIR)/kernel/%.o,$(K_ASMS))
 K_ELF   := $(BUILDDIR)/kernel/kernel.elf
 K_BIN   := $(BUILDDIR)/kernel/kernel.bin
@@ -74,8 +74,8 @@ $(EFI_SO): $(EFI_OBJS)
 $(EFI_BIN): $(EFI_SO)
 	objcopy $(EFI_OBJCOPY) $< $@
 
-$(BUILDDIR)/kernel/%.o: $(KSRC)/%.c | $(BUILDDIR)/kernel
-	gcc $(K_CFLAGS) -c $< -o $@
+$(BUILDDIR)/kernel/%.o: $(KSRC)/%.cpp | $(BUILDDIR)/kernel
+	g++ $(K_CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/kernel/%.o: $(KSRC)/%.asm | $(BUILDDIR)/kernel
 	$(NASM) -f elf64 $< -o $@

@@ -1,28 +1,30 @@
 #include <efi.h>
 #include <efilib.h>
-#include <string.h>
+#include "efiapi.h"
 #include "shared.h"
 #include "types.h"
-#include "x86_64/efibind.h"
 
-#define APIC_LAPIC        0
-#define APIC_IO_APIC      1
-#define APIC_IO_APIC_ISO  2
-#define APIC_IO_APIC_NIS  3
-#define APIC_LAPIC_NIS    4
-#define APIC_LAPIC_AO     5
-#define APIC_LOCAL_2xAPIC 9
+#define PACK __attribute__((packed))
 
 typedef struct PACK {
-  char Signature[4];
-  uint32_t Length;
-  uint8_t Revision;
-  uint8_t Checksum;
-  char OEMID[6];
-  char OEMTableID[8];
-  uint32_t OEMRevision;
-  uint32_t CreatorID;
-  uint32_t CreatorRevision;
+    char     Signature[8];
+    uint8_t  Checksum;
+    char     OemId[6];
+    uint8_t  Revision;
+    uint32_t RsdtAddress;
+    uint32_t Length;
+    uint64_t XsdtAddress;
+    uint8_t  ExtendedChecksum;
+    uint8_t  Reserved[3];
+} RSDP;
+
+typedef struct PACK {
+    char     Signature[4];
+    uint32_t Length;
+    uint8_t  Revision, Checksum;
+    char     OemId[6];
+    char     OemTableId[8];
+    uint32_t OemRevision, CreatorId, CreatorRevision;
 } SDT_HDR;
 
 typedef struct PACK {
@@ -30,40 +32,11 @@ typedef struct PACK {
     uint64_t Entry[];
 } XSDT;
 
-typedef struct PACK {
-    u8  ACPIProcessorId;
-    u8  APICId;
-    u32 Flags;
-} APICEntryLocalAPIC;
-
-typedef struct PACK {
-    u8  IOAPICId;
-    u8  Reserved;
-    u32 IOAPICAddress;
-    u32 GlobalSystemInterruptBase;
-} APICEntryIOAPIC;
-
-typedef struct PACK {
-    u8 EntryType;
-    u8 RecordLen;
-    union {
-        APICEntryIOAPIC ApicEntryIOApic;
-        APICEntryLocalAPIC ApicEntryLocalApic;
-    };
-} APICEntry;
-
-typedef struct PACK {
-    SDT_HDR   Header;
-    u32       LAPIC;
-    u32       PIC8259Support;
-    APICEntry Entries[];
-} APIC;
-
-static void dump_bytes(void *addr, u64 len) {
-    u64 *p = (u64*)addr;
-    for (u64 i = 0; i < len; i += 16) {
-        Print(L"%08lx: ", (u64)addr + i);
-        for (u64 j = 0; j < 16 && i + j < len; ++j)
+static void dump_bytes(void *addr, UINTN len) {
+    UINT8 *p = (UINT8*)addr;
+    for (UINTN i = 0; i < len; i += 16) {
+        Print(L"%08lx: ", (UINTN)addr + i);
+        for (UINTN j = 0; j < 16 && i + j < len; ++j)
             Print(L"%02x ", p[i + j]);
         Print(L"\r\n");
     }
@@ -117,52 +90,13 @@ EFI_STATUS exit_boot(EFI_HANDLE image) {
     return st;
 }
 
-static int checksum_ok(const void *p, u64 len) {
-    if (len != 36) return 0;
-    const i8 *b = p; u8 s = 0;
+static int checksum_ok(const void *p, UINTN len) {
+    const u8 *b = p; u8 s = 0;
     for (u64 i = 0; i < len; i++) s += b[i];
     return s == 0;
 }
 
-static void parseApic(SDT_HDR* entry) {
-    Print(L"Signature: %.4a\r\n", entry->Signature);
-    APIC* apic = (APIC*) entry;
-
-    Print(L"Local APIC addr: %u\n", apic->LAPIC);
-    Print(L"Legacy 8259: %u\n", apic->PIC8259Support);
-
-    uint32_t remaining = apic->Header.Length - sizeof(APIC);
-    Print(L"Entires Length: %u\n", remaining);
-
-    uint8_t* ptr = (uint8_t*)apic->Entries;
-    uint8_t* end = (uint8_t*)apic + apic->Header.Length;
-
-    while (ptr < end) {
-        APICEntry* e = (APICEntry*)ptr;
-        u8 type = e->EntryType;
-        u8 len = e->RecordLen;
-        Print(L"Type: %u, Length: %u\n", type, len);
-
-        switch (type) {
-            case APIC_IO_APIC: {
-
-                break;
-            }
-
-            case APIC_IO_APIC_ISO: {
-
-                break;
-            }
-        }
-
-
-        ptr += e->RecordLen;
-    }
-
-}
-
-static RSDP* discoverRsdp(EFI_SYSTEM_TABLE* system_table) {
-    RSDP* rsdp;
+static void* get_rsdp(EFI_SYSTEM_TABLE* system_table) {
     for (u64 i = 0; i < system_table->NumberOfTableEntries; ++i) {
         EFI_CONFIGURATION_TABLE* t = &system_table->ConfigurationTable[i];
 
@@ -173,25 +107,41 @@ static RSDP* discoverRsdp(EFI_SYSTEM_TABLE* system_table) {
             continue;
         }
 
-        rsdp = (RSDP*)t->VendorTable;
-        if (rsdp && checksum_ok(rsdp, rsdp->Length)) {
-            Print(L"Rsdp signature: %.8a\r\n", rsdp->Signature);
-            break;
-        }
-    }
-
-    XSDT* xsdt = (XSDT*)rsdp->XsdtAddress;
-    u32 table_entries = (xsdt->Hdr.Length - sizeof(SDT_HDR)) / 8;
-
-    for (u32 i = 0; i < table_entries; ++i) {
-        SDT_HDR* header = (SDT_HDR*)xsdt->Entry[i];
-
-        if (CompareMem(header->Signature, "APIC", 4) == 0) {
-            parseApic(header);
+        RSDP* rsdp = (RSDP*)t->VendorTable;
+        if (rsdp && checksum_ok(rsdp, rsdp->Revision >= 2 ? rsdp->Length : 20)) {
+            return rsdp;
         }
     }
 
     return NULL;
+}
+
+static SDT_HDR* find_in_xsdt(XSDT *xsdt, const char sig[4]) {
+    if (!xsdt || !checksum_ok(xsdt, xsdt->Hdr.Length)) return NULL;
+    u64 n = (xsdt->Hdr.Length - sizeof(SDT_HDR)) / sizeof(uint64_t);
+    for (u64 i = 0; i < n; i++) {
+        SDT_HDR *h = (SDT_HDR*)(u64)xsdt->Entry[i];
+        if (!h) continue;
+        if (!CompareMem(h->Signature, sig, 4) && checksum_ok(h, h->Length))
+            return h;
+    }
+    return NULL;
+}
+
+BOOLEAN fill_acpi_addrs(EFI_SYSTEM_TABLE *st, acpi *acpi_) {
+    RSDP *rsdp = get_rsdp(st);
+    if (!rsdp) return FALSE;
+
+    u64 xsdt_pa = (rsdp->Revision >= 2) ? rsdp->XsdtAddress
+                                             : (uint64_t)(uint32_t)rsdp->RsdtAddress; /* works: XSDT preferred */
+    XSDT *xsdt = (XSDT*)(u64)xsdt_pa;
+    SDT_HDR *madt = find_in_xsdt(xsdt, "APIC");
+    if (!madt) return FALSE;
+
+    acpi_->rsdp = (u64)(UINTN)rsdp;
+    acpi_->xsdt = (u64)(UINTN)xsdt;
+    acpi_->madt = (u64)(UINTN)madt;
+    return TRUE;
 }
 
 EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
@@ -204,25 +154,26 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
         return EFI_UNSUPPORTED;
     }
 
-    u64 BootData_bytes = sizeof(BootData);
-    u64 BootData_pages = EFI_SIZE_TO_PAGES(BootData_bytes);
-    EFI_PHYSICAL_ADDRESS BootData_physical_address = 0;
-    EFI_STATUS s = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, BootData_pages, &BootData_physical_address);
-    if (EFI_ERROR(s)) {
-        Print(L"Failed to allocated memory for the BootData struct!\r\n");
-        return s;
-    }
-
-    FramebufferInfo framebuffer;
+    framebuffer_info framebuffer;
     framebuffer.base = (void*) gop->Mode->FrameBufferBase;
     framebuffer.width = gop->Mode->Info->HorizontalResolution;
     framebuffer.height = gop->Mode->Info->VerticalResolution;
     framebuffer.pitch = framebuffer.pixels_per_scanline * 4;
     framebuffer.pixels_per_scanline = gop->Mode->Info->PixelsPerScanLine;
 
-    BootData* boot_dt = (BootData*)BootData_physical_address;
-    boot_dt->fb = framebuffer;
-    boot_dt->rsdp = discoverRsdp(system_table);
+    //acpi acpi_data;
+    //fill_acpi_addrs(system_table, &acpi_data);
+
+    uefi_data uefi_dt;
+    uefi_dt.fb = &framebuffer;
+    uefi_dt.acpi_data = NULL;
+
+
+
+    uint32_t *base = (uint32_t*)framebuffer.base;
+    for (int i = 0; i < 100000; ++i) {
+        base[i] = 0xFF00FF00;
+    }
 
     EFI_FILE_HANDLE volume = get_volume(image_handle);
     CHAR16 *kernel_file_name = L"kernel.bin";
@@ -230,14 +181,14 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
 
     uefi_call_wrapper(volume->Open, 5, volume, &kernel_handle, kernel_file_name, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY | EFI_FILE_HIDDEN | EFI_FILE_SYSTEM);
 
-    u64 kernel_size = file_size(kernel_handle);
-    u64 *buffer     = AllocatePool(kernel_size);
+    UINT64 kernel_size = file_size(kernel_handle);
+    UINT8  *buffer     = AllocatePool(kernel_size);
 
     uefi_call_wrapper(kernel_handle->Read, 3, kernel_handle, &kernel_size, buffer);
     uefi_call_wrapper(kernel_handle->Close, 1, kernel_handle);
 
     EFI_PHYSICAL_ADDRESS phys = 0x100000;
-    u64 pages = (u64)EFI_SIZE_TO_PAGES(kernel_size); // add 4095 and dividde by 4096 to get the number of pages
+    UINTN pages = (UINTN)((kernel_size + 0xFFF) >> 12); // add 4095 and dividde by 4096 to get the number of pages
     EFI_STATUS st_alloc = uefi_call_wrapper(BS->AllocatePages, 4,
                         AllocateAddress, EfiLoaderData, pages, &phys);
 
@@ -246,24 +197,23 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
         return st_alloc;
     }
 
-    uefi_call_wrapper(BS->CopyMem, 3, (VOID*)(u64)phys, buffer, (u64)kernel_size);
+    uefi_call_wrapper(BS->CopyMem, 3, (VOID*)(UINTN)phys, buffer, (UINTN)kernel_size);
     FreePool(buffer);
 
     uefi_call_wrapper(volume->Close, 1, volume);
 
     Print(L"Exiting boot...\r\n");
 
-    //EFI_STATUS st_exit = exit_boot(image_handle);
-    //if (EFI_ERROR(st_exit)) {
-    //    Print(L"ExitBootServices failed: %r\r\n", st_exit);
-    //    return st_exit;
-    //}
+    EFI_STATUS st_exit = exit_boot(image_handle);
+    if (EFI_ERROR(st_exit)) {
+        Print(L"ExitBootServices failed: %r\r\n", st_exit);
+        return st_exit;
+    }
 
-    //typedef void (*kentry_t)(BootData*);
-    //kentry_t kentry = (kentry_t)(u64)0x100000;
-    //kentry(boot_dt);
+    typedef void (*kentry_t)(uefi_data);
+    kentry_t kentry = (kentry_t)(UINTN)0x100000;
+    kentry(uefi_dt);
 
-    while(1);
     return EFI_SUCCESS;
 }
 
