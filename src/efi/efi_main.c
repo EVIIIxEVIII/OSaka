@@ -152,7 +152,7 @@ static void parseApic(SDTHeader* entry) {
     Print(L"Signature: %.4a\r\n", entry->signature);
     MADT* madt = (MADT*) entry;
 
-    APIC apic;
+    APICEntries apic;
     apic.header = madt->header;
     apic.pic_8259_support = madt->pic_8259_support;
 
