@@ -18,76 +18,70 @@
 #define MAX_ISO    32
 
 typedef struct PACK {
-  char Signature[4];
-  uint32_t Length;
-  uint8_t Revision;
-  uint8_t Checksum;
-  char OEMID[6];
-  char OEMTableID[8];
-  uint32_t OEMRevision;
-  uint32_t CreatorID;
-  uint32_t CreatorRevision;
-} SDT_HDR;
+  char signature[4];
+  uint32_t length;
+  uint8_t revision;
+  uint8_t checksum;
+  char oem_id[6];
+  char oem_table_id[8];
+  uint32_t oem_revision;
+  uint32_t creator_id;
+  uint32_t creator_revision;
+} SDTHeader;
 
 typedef struct PACK {
-    SDT_HDR  Hdr;
-    uint64_t Entry[];
+    SDTHeader header;
+    u64       entry[];
 } XSDT;
 
 typedef struct PACK {
-    u8 EntryType;
-    u8 RecordLen;
+    u8 entry_type;
+    u8 record_len;
 } APICHeader;
 
 typedef struct PACK {
-    APICHeader Header;
-    u8  ACPIProcessorId;
-    u8  APICId;
-    u32 Flags;
+    APICHeader header;
+    u8         acpi_processor_id;
+    u8         apic_id;
+    u32        flags;
 } APICEntryLocalAPIC;
 
 typedef struct PACK {
-    APICHeader Header;
-    u8  IOAPICId;
-    u8  Reserved;
-    u32 IOAPICAddress;
-    u32 GlobalSystemInterruptBase;
+    APICHeader header;
+    u8         io_apic_id;
+    u8         reserved;
+    u32        io_apic_address;
+    u32        global_system_interrupt_base;
 } APICEntryIOAPIC;
 
 typedef struct PACK {
-    APICHeader Header;
-    u8  BusSource;
-    u8  IRQSource;
-    u32 GlobalSystemInterrupt;
-    u16 Flags;
+    APICHeader header;
+    u8         bus_source;
+    u8         irq_source;
+    u32        global_system_interrupt;
+    u16        flags;
 } APICEntryIOAPICSourceOverride;
 
 typedef struct PACK {
-    APICEntryIOAPIC IOAPICs;
-    APICEntryIOAPICSourceOverride IOAPICSourceOverrides;
-    APICEntryLocalAPIC LocalAPICs;
-} APICEntries;
-
-typedef struct PACK {
-    SDT_HDR     Header;
-    u32         LAPICAddress;
-    u32         PIC8259Support; // legacy not used
-    byte        Entries[];
+    SDTHeader   header;
+    u32         lapic_address;
+    u32         pic_8259_support; // legacy not used
+    byte        entries[];
 } MADT;
 
 typedef struct PACK {
-    SDT_HDR   Header;
-    u32       LAPICAddress;
-    u32       PIC8259Support; //legacy not used
+    SDTHeader header;
+    u32       lapic_address;
+    u32       pic_8259_support; //legacy not used
 
-    u64       LAPICCount;
-    u64       IOAPICCount;
-    u64       IOAPICSOCount;
+    u64       lapic_count;
+    u64       io_apic_count;
+    u64       io_apic_source_overrides_count;
 
-    APICEntryLocalAPIC            LAPICs[MAX_CPUS];
-    APICEntryIOAPIC               IOAPICs[MAX_IOAPIC];
-    APICEntryIOAPICSourceOverride IOAPICSOs[MAX_ISO];
-} APIC;
+    APICEntryLocalAPIC            lapics[MAX_CPUS];
+    APICEntryIOAPIC               io_apics[MAX_IOAPIC];
+    APICEntryIOAPICSourceOverride io_apic_source_overrides[MAX_ISO];
+} APICEntries;
 
 static void dump_bytes(void *addr, u64 len) {
     u64 *p = (u64*)addr;
@@ -154,37 +148,36 @@ static int checksum_ok(const void *p, u64 len) {
     return s == 0;
 }
 
-static void parseApic(SDT_HDR* entry) {
-    Print(L"Signature: %.4a\r\n", entry->Signature);
+static void parseApic(SDTHeader* entry) {
+    Print(L"Signature: %.4a\r\n", entry->signature);
     MADT* madt = (MADT*) entry;
 
     APIC apic;
-    apic.Header = madt->Header;
-    apic.PIC8259Support = madt->PIC8259Support;
+    apic.header = madt->header;
+    apic.pic_8259_support = madt->pic_8259_support;
 
-    apic.LAPICCount = 0;
-    apic.IOAPICSOCount = 0;
-    apic.IOAPICCount = 0;
+    apic.lapic_count = 0;
+    apic.io_apic_count = 0;
+    apic.io_apic_count = 0;
 
-    Print(L"Local APIC addr: %u\n", madt->LAPICAddress);
-    Print(L"Legacy 8259: %u\n", madt->PIC8259Support);
+    Print(L"Local APIC addr: %u\n", madt->lapic_address);
+    Print(L"Legacy 8259: %u\n", madt->pic_8259_support);
 
-    uint32_t remaining = madt->Header.Length - sizeof(MADT);
+    uint32_t remaining = madt->header.length - sizeof(MADT);
     Print(L"Entires Length: %u\n", remaining);
 
-    uint8_t* ptr = (uint8_t*)madt->Entries;
-    uint8_t* end = (uint8_t*)madt + madt->Header.Length;
+    uint8_t* ptr = (uint8_t*)madt->entries;
+    uint8_t* end = (uint8_t*)madt + madt->header.length;
 
     while (ptr < end) {
         APICHeader* header = (APICHeader*)ptr;
-        u8 type = header->EntryType;
-        u8 len = header->RecordLen;
+        u8 type = header->entry_type;
+        u8 len = header->record_len;
 
         Print(L"Type: %u, Length: %u\n", type, len);
 
         switch (type) {
             case APIC_IO_APIC: {
-
 
                 break;
             }
@@ -200,7 +193,7 @@ static void parseApic(SDT_HDR* entry) {
            }
         }
 
-        ptr += header->RecordLen;
+        ptr += header->record_len;
     }
 
 }
@@ -225,12 +218,12 @@ static RSDP* discoverRsdp(EFI_SYSTEM_TABLE* system_table) {
     }
 
     XSDT* xsdt = (XSDT*)rsdp->XsdtAddress;
-    u32 table_entries = (xsdt->Hdr.Length - sizeof(SDT_HDR)) / 8;
+    u32 table_entries = (xsdt->header.length - sizeof(SDTHeader)) / 8;
 
     for (u32 i = 0; i < table_entries; ++i) {
-        SDT_HDR* header = (SDT_HDR*)xsdt->Entry[i];
+        SDTHeader* header = (SDTHeader*)xsdt->entry[i];
 
-        if (CompareMem(header->Signature, "APIC", 4) == 0) {
+        if (CompareMem(header->signature, "APIC", 4) == 0) {
             parseApic(header);
         }
     }
