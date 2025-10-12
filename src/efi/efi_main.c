@@ -13,6 +13,10 @@
 #define APIC_LAPIC_AO     5
 #define APIC_LOCAL_2xAPIC 9
 
+#define MAX_CPUS   32
+#define MAX_IOAPIC 4
+#define MAX_ISO    32
+
 typedef struct PACK {
   char Signature[4];
   uint32_t Length;
@@ -31,12 +35,19 @@ typedef struct PACK {
 } XSDT;
 
 typedef struct PACK {
+    u8 EntryType;
+    u8 RecordLen;
+} APICHeader;
+
+typedef struct PACK {
+    APICHeader Header;
     u8  ACPIProcessorId;
     u8  APICId;
     u32 Flags;
 } APICEntryLocalAPIC;
 
 typedef struct PACK {
+    APICHeader Header;
     u8  IOAPICId;
     u8  Reserved;
     u32 IOAPICAddress;
@@ -44,19 +55,38 @@ typedef struct PACK {
 } APICEntryIOAPIC;
 
 typedef struct PACK {
-    u8 EntryType;
-    u8 RecordLen;
-    union {
-        APICEntryIOAPIC ApicEntryIOApic;
-        APICEntryLocalAPIC ApicEntryLocalApic;
-    };
-} APICEntry;
+    APICHeader Header;
+    u8  BusSource;
+    u8  IRQSource;
+    u32 GlobalSystemInterrupt;
+    u16 Flags;
+} APICEntryIOAPICSourceOverride;
+
+typedef struct PACK {
+    APICEntryIOAPIC IOAPICs;
+    APICEntryIOAPICSourceOverride IOAPICSourceOverrides;
+    APICEntryLocalAPIC LocalAPICs;
+} APICEntries;
+
+typedef struct PACK {
+    SDT_HDR     Header;
+    u32         LAPICAddress;
+    u32         PIC8259Support; // legacy not used
+    byte        Entries[];
+} MADT;
 
 typedef struct PACK {
     SDT_HDR   Header;
-    u32       LAPIC;
-    u32       PIC8259Support;
-    APICEntry Entries[];
+    u32       LAPICAddress;
+    u32       PIC8259Support; //legacy not used
+
+    u64       LAPICCount;
+    u64       IOAPICCount;
+    u64       IOAPICSOCount;
+
+    APICEntryLocalAPIC            LAPICs[MAX_CPUS];
+    APICEntryIOAPIC               IOAPICs[MAX_IOAPIC];
+    APICEntryIOAPICSourceOverride IOAPICSOs[MAX_ISO];
 } APIC;
 
 static void dump_bytes(void *addr, u64 len) {
@@ -126,25 +156,35 @@ static int checksum_ok(const void *p, u64 len) {
 
 static void parseApic(SDT_HDR* entry) {
     Print(L"Signature: %.4a\r\n", entry->Signature);
-    APIC* apic = (APIC*) entry;
+    MADT* madt = (MADT*) entry;
 
-    Print(L"Local APIC addr: %u\n", apic->LAPIC);
-    Print(L"Legacy 8259: %u\n", apic->PIC8259Support);
+    APIC apic;
+    apic.Header = madt->Header;
+    apic.PIC8259Support = madt->PIC8259Support;
 
-    uint32_t remaining = apic->Header.Length - sizeof(APIC);
+    apic.LAPICCount = 0;
+    apic.IOAPICSOCount = 0;
+    apic.IOAPICCount = 0;
+
+    Print(L"Local APIC addr: %u\n", madt->LAPICAddress);
+    Print(L"Legacy 8259: %u\n", madt->PIC8259Support);
+
+    uint32_t remaining = madt->Header.Length - sizeof(MADT);
     Print(L"Entires Length: %u\n", remaining);
 
-    uint8_t* ptr = (uint8_t*)apic->Entries;
-    uint8_t* end = (uint8_t*)apic + apic->Header.Length;
+    uint8_t* ptr = (uint8_t*)madt->Entries;
+    uint8_t* end = (uint8_t*)madt + madt->Header.Length;
 
     while (ptr < end) {
-        APICEntry* e = (APICEntry*)ptr;
-        u8 type = e->EntryType;
-        u8 len = e->RecordLen;
+        APICHeader* header = (APICHeader*)ptr;
+        u8 type = header->EntryType;
+        u8 len = header->RecordLen;
+
         Print(L"Type: %u, Length: %u\n", type, len);
 
         switch (type) {
             case APIC_IO_APIC: {
+
 
                 break;
             }
@@ -152,11 +192,15 @@ static void parseApic(SDT_HDR* entry) {
             case APIC_IO_APIC_ISO: {
 
                 break;
-            }
+           }
+
+           case APIC_LAPIC: {
+
+                break;
+           }
         }
 
-
-        ptr += e->RecordLen;
+        ptr += header->RecordLen;
     }
 
 }

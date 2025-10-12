@@ -16,7 +16,7 @@ typedef struct PACK {
     uint8_t Checksum;
     char OEMID[6];
     uint8_t Revision;
-    uint32_t RsdtAddress;
+    uint32_t RsdtAddress; // legacy
 
     uint32_t Length;
     uint64_t XsdtAddress;
