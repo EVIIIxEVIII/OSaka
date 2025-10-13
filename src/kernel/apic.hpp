@@ -22,6 +22,14 @@ typedef struct PACK {
 
 typedef struct PACK {
     APICHeader header;
+    u16        reserved;
+    u32        lapicx2_id;
+    u32        flags;
+    u32        acpi_id;
+} APICEntryLocal2xAPIC;
+
+typedef struct PACK {
+    APICHeader header;
     u8         acpi_processor_id;
     u8         apic_id;
     u32        flags;
@@ -56,9 +64,11 @@ typedef struct PACK {
     u32       pic_8259_support; //legacy not used
 
     u64       lapic_count;
+    u64       lapicsx2_count;
     u64       io_apic_count;
     u64       io_apic_source_overrides_count;
 
+    APICEntryLocal2xAPIC          lapicsx2[MAX_CPUS];
     APICEntryLocalAPIC            lapics[MAX_CPUS];
     APICEntryIOAPIC               io_apics[MAX_IOAPIC];
     APICEntryIOAPICSourceOverride io_apic_source_overrides[MAX_ISO];

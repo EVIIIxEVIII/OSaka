@@ -1,0 +1,75 @@
+#include "shared.h"
+#include "apic.hpp"
+#include "types.h"
+#include "console.hpp"
+#include "xsdt.hpp"
+
+BootData* global_boot_data;
+
+extern "C" void set_idt_gate(u8 vec, void* handler, u16 selector, u8 type_attr);
+extern "C" void load_idt();
+extern "C" void load_gdt64();
+extern "C" void keyboard_stub();
+extern "C" void isr_test_stub();
+extern "C" void timer_stub();
+
+static inline void outb(u16 port, u8 value) {
+    __asm__ volatile (
+        "out dx, al"
+        :
+        : "d"(port), "a"(value)
+    );
+}
+
+void keyboard_handler() {
+    printk("X");
+}
+
+u64 compareMem(const void* dest, const void* src, u64 count) {
+    byte* dest_b = (byte*) dest;
+    byte* src_b = (byte*) src;
+
+    u64 ans = 0;
+    for (u64 i = 0; i < count; ++i) {
+        if (dest_b[i] != src_b[i]) {
+            ans++;
+        }
+    }
+
+    return ans;
+}
+
+extern "C" void kmain(BootData* boot_data) {
+    global_boot_data = boot_data;
+    console_set_fb(&boot_data->fb);
+    clear_screen();
+
+    __asm__ __volatile__("cli");
+    load_gdt64();
+
+    outb(0xA1, 0xFF);
+    outb(0x21, 0xFF);
+
+    set_idt_gate(0x20, (void*)timer_stub, 0x08, 0x8E);
+    set_idt_gate(0x21, (void*)keyboard_stub, 0x08, 0x8E);
+
+    RSDP* rsdp = boot_data->rsdp;
+    printk("Rsdp sig: %.8s \n", rsdp->signature);
+    XSDT* xsdt = (XSDT*)rsdp->xsdt_address;
+    u32 table_entries = (xsdt->header.length - sizeof(SDTHeader)) / 8;
+
+    for (u32 i = 0; i < table_entries; ++i) {
+        SDTHeader* header = (SDTHeader*)xsdt->entry[i];
+
+        printk("Header: %.4s \n", header->signature);
+        if (compareMem(header->signature, "APIC", 4) == 0) {
+            printk("Compare mem works! \n");
+            //APICEntries apicEntries = parseMADT(header);
+        }
+    }
+
+
+    load_idt();
+    __asm__ __volatile__("sti");
+
+}

@@ -10,10 +10,10 @@ void putpx(u64 x, u64 y, u32 col) {
     base[y * fb.width + x] = col;
 }
 
-void clear_screen() {
+void clear_screen(u64 color) {
     for (u32 i = 0; i < fb.height; ++i) {
         for (u32 j = 0; j < fb.width; ++j) {
-            putpx(j, i, 0xFFFFFFFF);
+            putpx(j, i, color);
         }
     }
 }
@@ -42,7 +42,16 @@ void putchar(char c) {
     cursorX++;
 }
 
-static void print_dec(long num) {
+static void print_dec_sig(i64 num) {
+    char buf[32];
+    int i = 0;
+    if (num == 0) { putchar('0'); return; }
+    if (num < 0) { putchar('-'); num = -num; }
+    while (num) { buf[i++] = '0' + (num % 10); num /= 10; }
+    while (i--) putchar(buf[i]);
+}
+
+static void print_dec_unsig(u64 num) {
     char buf[32];
     int i = 0;
     if (num == 0) { putchar('0'); return; }
@@ -95,7 +104,11 @@ void printk(const char *fmt, ...) {
                 break;
             }
             case 'd':
-                print_dec(va_arg(args, int));
+                print_dec_sig(va_arg(args, i64));
+                break;
+
+            case 'u':
+                print_dec_unsig(va_arg(args, u64));
                 break;
 
             case 'x':

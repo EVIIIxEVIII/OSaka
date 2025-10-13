@@ -52,22 +52,12 @@ timer_stub:
     iretq
 
 keyboard_stub:
-    push rax
-    push rdx
+    PUSH_REGS
 
-    mov     dx, 0x60
-    in      al, dx
+    call keyboard_handler
 
-    mov     dx, 0xE9
-    mov     al, 'K'
-    out     dx, al
+    POP_REGS
 
-    mov     dx, 0x20
-    mov     al, 0x20
-    out     dx, al
-
-    pop     rdx
-    pop     rax
     iretq
 
 isr_test_stub:
