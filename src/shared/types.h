@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 
+#define PACK __attribute__((packed))
+
 typedef int64_t i64;
 typedef int32_t i32;
 typedef int16_t i16;

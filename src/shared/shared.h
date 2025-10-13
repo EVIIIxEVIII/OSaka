@@ -12,15 +12,15 @@ typedef struct PAC {
 } FramebufferInfo;
 
 typedef struct PACK {
-    char Signature[8];
-    uint8_t Checksum;
-    char OEMID[6];
-    uint8_t Revision;
-    uint32_t RsdtAddress; // legacy
+    char signature[8];
+    uint8_t checksum;
+    char oemid[6];
+    uint8_t revision;
+    uint32_t rsdt_address; // legacy
 
-    uint32_t Length;
-    uint64_t XsdtAddress;
-    uint8_t ExtendedChecksum;
+    uint32_t length;
+    uint64_t xsdt_address;
+    uint8_t extended_checksum;
     uint8_t reserved[3];
 } RSDP;
 

@@ -157,7 +157,7 @@ static void parseApic(SDTHeader* entry) {
     apic.pic_8259_support = madt->pic_8259_support;
 
     apic.lapic_count = 0;
-    apic.io_apic_count = 0;
+    apic.io_apic_source_overrides_count = 0;
     apic.io_apic_count = 0;
 
     Print(L"Local APIC addr: %u\n", madt->lapic_address);
@@ -175,20 +175,19 @@ static void parseApic(SDTHeader* entry) {
         u8 len = header->record_len;
 
         Print(L"Type: %u, Length: %u\n", type, len);
-
         switch (type) {
             case APIC_IO_APIC: {
-
+                apic.io_apics[apic.io_apic_count++] = *(APICEntryIOAPIC*)ptr;
                 break;
             }
 
             case APIC_IO_APIC_ISO: {
-
+                apic.io_apic_source_overrides[apic.io_apic_source_overrides_count++] = *(APICEntryIOAPICSourceOverride*)ptr;
                 break;
            }
 
            case APIC_LAPIC: {
-
+                apic.lapics[apic.lapic_count++] = *(APICEntryLocalAPIC*)ptr;
                 break;
            }
         }
@@ -196,6 +195,9 @@ static void parseApic(SDTHeader* entry) {
         ptr += header->record_len;
     }
 
+    Print(L"Found %u IO APICs\n", apic.io_apic_count);
+    Print(L"Found %u IO APIC ISOs\n", apic.io_apic_source_overrides_count);
+    Print(L"Found %u LAPICS\n", apic.lapic_count);
 }
 
 static RSDP* discoverRsdp(EFI_SYSTEM_TABLE* system_table) {
@@ -211,13 +213,13 @@ static RSDP* discoverRsdp(EFI_SYSTEM_TABLE* system_table) {
         }
 
         rsdp = (RSDP*)t->VendorTable;
-        if (rsdp && checksum_ok(rsdp, rsdp->Length)) {
-            Print(L"Rsdp signature: %.8a\r\n", rsdp->Signature);
-            break;
+        if (rsdp && checksum_ok(rsdp, rsdp->length)) {
+            Print(L"Rsdp signature: %.8a\r\n", rsdp->signature);
+            return rsdp;
         }
     }
 
-    XSDT* xsdt = (XSDT*)rsdp->XsdtAddress;
+    XSDT* xsdt = (XSDT*)rsdp->xsdt_address;
     u32 table_entries = (xsdt->header.length - sizeof(SDTHeader)) / 8;
 
     for (u32 i = 0; i < table_entries; ++i) {
@@ -290,15 +292,15 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
 
     Print(L"Exiting boot...\r\n");
 
-    //EFI_STATUS st_exit = exit_boot(image_handle);
-    //if (EFI_ERROR(st_exit)) {
-    //    Print(L"ExitBootServices failed: %r\r\n", st_exit);
-    //    return st_exit;
-    //}
+    EFI_STATUS st_exit = exit_boot(image_handle);
+    if (EFI_ERROR(st_exit)) {
+        Print(L"ExitBootServices failed: %r\r\n", st_exit);
+        return st_exit;
+    }
 
-    //typedef void (*kentry_t)(BootData*);
-    //kentry_t kentry = (kentry_t)(u64)0x100000;
-    //kentry(boot_dt);
+    typedef void (*kentry_t)(BootData*);
+    kentry_t kentry = (kentry_t)(u64)0x100000;
+    kentry(boot_dt);
 
     while(1);
     return EFI_SUCCESS;
