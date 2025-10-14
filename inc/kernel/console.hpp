@@ -1,7 +1,7 @@
 #pragma once
 
-#include "shared.h"
-#include "types.h"
+#include "shared/shared.h"
+#include "shared/types.h"
 
 static int cursorX = 0;
 static int cursorY = 0;

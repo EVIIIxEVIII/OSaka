@@ -1,8 +1,8 @@
-#include "shared.h"
-#include "apic.hpp"
-#include "types.h"
-#include "console.hpp"
-#include "xsdt.hpp"
+#include "shared/shared.h"
+#include "shared/types.h"
+#include "kernel/apic.hpp"
+#include "kernel/console.hpp"
+#include "kernel/xsdt.hpp"
 
 BootData* global_boot_data;
 
@@ -153,9 +153,7 @@ extern "C" void kmain(BootData* boot_data) {
     rte |= vector;                    // bits 0–7: vector
     rte |= (0ULL << 8);               // bits 8–10: delivery mode = Fixed
     rte |= (0ULL << 11);              // bit 11: destination mode = Physical
-
     rte |= (0ULL << 13);              // bit 13: polarity = 0 (active-high)
-
     rte |= (0ULL << 15);              // bit 15: trigger = 0 (edge)
     rte |= (0ULL << 16);              // bit 16: mask = 0 (unmasked)
     rte |= ((u64)lapic.apic_id << 56); // bits 56–63: destination APIC ID
@@ -166,8 +164,5 @@ extern "C" void kmain(BootData* boot_data) {
     load_idt();
     __asm__ __volatile__("sti");
 
-
-    for (;;) {
-        asm volatile("hlt");
-    }
+    for (;;) { asm volatile("hlt"); }
 }

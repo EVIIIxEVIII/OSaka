@@ -1,6 +1,6 @@
 #pragma once
-#include "types.h"
-#include "shared.h"
+#include "shared/types.h"
+#include "shared/shared.h"
 #include "xsdt.hpp"
 
 #define APIC_LAPIC        0

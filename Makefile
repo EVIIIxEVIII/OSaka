@@ -15,14 +15,16 @@ GNUEFI_LIBDIR  := $(GNUEFI)/$(ARCH)/gnuefi
 CRT0           := $(GNUEFI_LIBDIR)/crt0-efi-$(ARCH).o
 LDS            := $(GNUEFI)/gnuefi/elf_$(ARCH)_efi.lds
 
-EFI_CFLAGS := -I$(INC) -Isrc/shared -fpic -ffreestanding -fno-stack-protector -fno-stack-check \
+EFI_CFLAGS := -I$(INC) -Iinc -fpic -ffreestanding -fno-stack-protector -fno-stack-check \
     -fshort-wchar -mno-red-zone -Wall -Wextra
+
 EFI_LDFLAGS := -shared -Bsymbolic -L$(LIBDIR) -L$(GNUEFI_LIBDIR) -T$(LDS)
 EFI_LIBS    := -lgnuefi -lefi
 EFI_OBJCOPY := -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym \
     -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-$(ARCH) --subsystem=10
 
-K_CFLAGS := -Isrc/shared -ffreestanding -fno-pic -fno-stack-protector -mno-red-zone -Wall -Wextra -masm=intel -mno-red-zone
+K_CFLAGS := -Iinc -ffreestanding -fno-pic -fno-stack-protector -mno-red-zone \
+    -Wall -Wextra -masm=intel -mno-red-zone
 K_LDS    := $(KSRC)/kernel.ld
 
 EFI_SRCS := $(wildcard $(EFISRC)/*.c)
@@ -30,10 +32,10 @@ EFI_OBJS := $(patsubst $(EFISRC)/%.c,$(BUILDDIR)/efi/%.o,$(EFI_SRCS))
 EFI_SO   := $(BUILDDIR)/efi/main.so
 EFI_BIN  := $(BUILDDIR)/efi/BOOTX64.EFI
 
-K_CSRCS := $(wildcard $(KSRC)/*.cpp)
-K_ASMS  := $(wildcard $(KSRC)/*.asm)
-K_OBJS  := $(patsubst $(KSRC)/%.cpp,$(BUILDDIR)/kernel/%.o,$(K_CSRCS)) \
-           $(patsubst $(KSRC)/%.asm,$(BUILDDIR)/kernel/%.o,$(K_ASMS))
+K_CSRCS := $(shell find $(KSRC) -type f -name '*.cpp')
+K_ASMS  := $(shell find $(KSRC) -type f -name '*.asm')
+K_OBJS := $(patsubst $(KSRC)/%,$(BUILDDIR)/kernel/%,$(K_CSRCS:.cpp=.o)) \
+          $(patsubst $(KSRC)/%,$(BUILDDIR)/kernel/%,$(K_ASMS:.asm=.o))
 K_ELF   := $(BUILDDIR)/kernel/kernel.elf
 K_BIN   := $(BUILDDIR)/kernel/kernel.bin
 
@@ -75,9 +77,11 @@ $(EFI_BIN): $(EFI_SO)
 	objcopy $(EFI_OBJCOPY) $< $@
 
 $(BUILDDIR)/kernel/%.o: $(KSRC)/%.cpp | $(BUILDDIR)/kernel
+	mkdir -p $(dir $@)
 	g++ $(K_CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/kernel/%.o: $(KSRC)/%.asm | $(BUILDDIR)/kernel
+	mkdir -p $(dir $@)
 	$(NASM) -f elf64 $< -o $@
 
 $(K_ELF): $(K_OBJS) $(K_LDS)

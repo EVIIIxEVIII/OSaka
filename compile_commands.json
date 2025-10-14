@@ -1,36 +1,8 @@
 [
   {
     "arguments": [
-      "/usr/lib/ccache/gcc",
-      "-Ithird_party/gnu-efi/inc",
-      "-Isrc/shared",
-      "-fpic",
-      "-ffreestanding",
-      "-fno-stack-protector",
-      "-fno-stack-check",
-      "-fshort-wchar",
-      "-mno-red-zone",
-      "-Wall",
-      "-Wextra",
-      "-c",
-      "-I",
-      "/usr/local/cuda/include",
-      "-I",
-      "/usr/local/cuda/include",
-      "-I",
-      ".",
-      "-o",
-      "build/efi/efi_main.o",
-      "src/efi/efi_main.c"
-    ],
-    "directory": "/home/alderson/Projects/Mine/os",
-    "file": "/home/alderson/Projects/Mine/os/src/efi/efi_main.c",
-    "output": "/home/alderson/Projects/Mine/os/build/efi/efi_main.o"
-  },
-  {
-    "arguments": [
-      "/usr/lib/ccache/gcc",
-      "-Isrc/shared",
+      "/usr/lib/ccache/g++",
+      "-Iinc",
       "-ffreestanding",
       "-fno-pic",
       "-fno-stack-protector",
@@ -38,6 +10,7 @@
       "-Wall",
       "-Wextra",
       "-masm=intel",
+      "-mno-red-zone",
       "-c",
       "-I",
       "/usr/local/cuda/include",
@@ -47,10 +20,10 @@
       ".",
       "-o",
       "build/kernel/kmain.o",
-      "src/kernel/kmain.c"
+      "src/kernel/kmain.cpp"
     ],
     "directory": "/home/alderson/Projects/Mine/os",
-    "file": "/home/alderson/Projects/Mine/os/src/kernel/kmain.c",
+    "file": "/home/alderson/Projects/Mine/os/src/kernel/kmain.cpp",
     "output": "/home/alderson/Projects/Mine/os/build/kernel/kmain.o"
   }
 ]

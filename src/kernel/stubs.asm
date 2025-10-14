@@ -42,28 +42,9 @@ section .text
     pop rax
 %endmacro
 
-timer_stub:
-    push rax
-    mov al, 'T'
-    out 0xE9, al
-    mov al, 0x20
-    out 0x20, al
-    pop rax
-    iretq
-
 keyboard_stub:
     PUSH_REGS
-
     call keyboard_handler
-
     POP_REGS
-
     iretq
 
-isr_test_stub:
-    push rax
-    mov  al, 'I'
-    out  0xE9, al
-    pop  rax
-
-    iretq

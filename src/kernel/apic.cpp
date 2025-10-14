@@ -1,5 +1,5 @@
-#include "apic.hpp"
-#include "console.hpp"
+#include "kernel/apic.hpp"
+#include "kernel/console.hpp"
 
 APICEntries parseMADT(SDTHeader* entry) {
     printk("Header: %.4s \n", entry->signature);

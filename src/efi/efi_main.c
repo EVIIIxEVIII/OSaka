@@ -1,8 +1,8 @@
 #include <efi.h>
 #include <efilib.h>
 #include <string.h>
-#include "shared.h"
-#include "types.h"
+#include "shared/types.h"
+#include "shared/shared.h"
 #include "x86_64/efibind.h"
 
 #define APIC_LAPIC        0

@@ -1,7 +1,7 @@
 #include <stdarg.h>
-#include "console.hpp"
-#include "types.h"
-#include "font.hpp"
+#include "kernel/console.hpp"
+#include "shared/types.h"
+#include "kernel/font.hpp"
 
 void console_set_fb(FramebufferInfo *p) { fb = *p; }
 
@@ -26,7 +26,6 @@ void putchar(char c) {
     }
 
     unsigned char* charBitmap = font8x16[(u8)c];
-
     for (u8 i = 0; i < 16; ++i) {
         u8 row = charBitmap[i];
 
