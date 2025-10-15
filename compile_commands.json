@@ -1,6 +1,34 @@
 [
   {
     "arguments": [
+      "/usr/lib/ccache/gcc",
+      "-Ithird_party/gnu-efi/inc",
+      "-Iinc",
+      "-fpic",
+      "-ffreestanding",
+      "-fno-stack-protector",
+      "-fno-stack-check",
+      "-fshort-wchar",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-c",
+      "-I",
+      "/usr/local/cuda/include",
+      "-I",
+      "/usr/local/cuda/include",
+      "-I",
+      ".",
+      "-o",
+      "build/efi/efi_main.o",
+      "src/efi/efi_main.c"
+    ],
+    "directory": "/home/alderson/Projects/Mine/os",
+    "file": "/home/alderson/Projects/Mine/os/src/efi/efi_main.c",
+    "output": "/home/alderson/Projects/Mine/os/build/efi/efi_main.o"
+  },
+  {
+    "arguments": [
       "/usr/lib/ccache/g++",
       "-Iinc",
       "-ffreestanding",

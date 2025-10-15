@@ -25,7 +25,7 @@ void putchar(char c) {
         return;
     }
 
-    unsigned char* charBitmap = font8x16[(u8)c];
+    const byte* charBitmap = font8x16[(byte)c];
     for (u8 i = 0; i < 16; ++i) {
         u8 row = charBitmap[i];
 

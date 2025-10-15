@@ -16,6 +16,6 @@ typedef uint8_t u8;
 typedef double f64;
 typedef float  f32;
 
-typedef char byte;
+typedef uint8_t byte;
 
 
