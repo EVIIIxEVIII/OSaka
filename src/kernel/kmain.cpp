@@ -4,6 +4,7 @@
 #include "kernel/console.hpp"
 #include "kernel/xsdt.hpp"
 #include "kernel/scan_codes.hpp"
+#include "kernel/physical_memory_mapper.hpp"
 
 BootData* global_boot_data;
 
@@ -113,16 +114,17 @@ extern "C" void keyboard_handler() {
 }
 
 typedef struct {
-    byte* page_global_directory;
-    byte* page_upper_directory;
-    byte* page_middle_directory;
-    byte* page_table;
+    u64* page_global_directory;
+    u64* page_upper_directory;
+    u64* page_middle_directory;
+    u64* page_table;
 } PageTables;
 
 extern "C" void kmain(BootData* boot_data) {
     global_boot_data = boot_data;
     console_set_fb(&boot_data->fb);
     clear_screen(0xFFFFFFFF);
+    pmm_init();
 
     __asm__ __volatile__("cli");
     load_gdt64();
@@ -152,5 +154,16 @@ extern "C" void kmain(BootData* boot_data) {
     load_idt();
     __asm__ __volatile__("sti");
 
+    byte* memory = pmm_alloc(7);
+    printk("Memory location: %x \n", memory);
+
+    memory = pmm_alloc(7);
+    printk("Memory location: %x \n", memory);
+
+    memory = pmm_alloc(7);
+    printk("Memory location: %x \n", memory);
+
+    memory = pmm_alloc(7);
+    printk("Memory location: %x \n", memory);
     for (;;) { asm volatile("hlt"); }
 }
