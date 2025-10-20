@@ -10,7 +10,9 @@ typedef struct {
 
 typedef enum {
     VM_RESERVED,
-    VM_FREE
+    VM_FREE,
+    VM_UNSET,
+    VM_USED,
 } VmRangeFlags;
 
 typedef struct VmRange {

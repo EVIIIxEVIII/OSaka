@@ -19,14 +19,31 @@ void pmm_init() {
     }
 }
 
-byte* pmm_alloc(u64 size) {
+byte* pmm_alloc(u64 size, AllocType alloc_type) {
+    u64 start_from = -1;
+    u64 end_at = -1;
+
+    switch (alloc_type) {
+        case ALLOC_GENERAL: {
+            start_from = RESERVED_PAGES;
+            end_at = TOTAL_PAGES;
+            break;
+        }
+
+        case ALLOC_RESERVED: {
+            start_from = 0;
+            end_at = RESERVED_PAGES;
+            break;
+        }
+    }
+
     u64 aligned_size = (size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
     u64 pages = aligned_size / PAGE_SIZE;
 
     u64 candidates = 0;
     u64 segment_start = UINT64_MAX;
 
-    for (u64 i = RESERVED_PAGES; i < TOTAL_PAGES; ++i) {
+    for (u64 i = start_from; i < end_at; ++i) {
         if (is_free(i)) {
             if(candidates++ == pages) {
                 segment_start = i - pages;

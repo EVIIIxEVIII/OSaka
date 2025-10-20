@@ -5,6 +5,7 @@
 #include "kernel/xsdt.hpp"
 #include "kernel/scan_codes.hpp"
 #include "kernel/physical_memory_mapper.hpp"
+#include "kernel/virtual_memory_mapper.hpp"
 
 BootData* global_boot_data;
 
@@ -113,18 +114,12 @@ extern "C" void keyboard_handler() {
     lapic_eoi();
 }
 
-typedef struct {
-    u64* page_global_directory;
-    u64* page_upper_directory;
-    u64* page_middle_directory;
-    u64* page_table;
-} PageTables;
-
 extern "C" void kmain(BootData* boot_data) {
     global_boot_data = boot_data;
     console_set_fb(&boot_data->fb);
     clear_screen(0xFFFFFFFF);
     pmm_init();
+    vmm_init();
 
     __asm__ __volatile__("cli");
     load_gdt64();
@@ -165,5 +160,13 @@ extern "C" void kmain(BootData* boot_data) {
 
     memory = pmm_alloc(7);
     printk("Memory location: %x \n", memory);
+
+    byte* virtual_memory = vmm_map(10);
+    if (!virtual_memory) {
+        printk("Failed to allocate virtual memory!\n");
+    } else {
+        printk("Virtual memory location: %x \n", virtual_memory);
+    }
+
     for (;;) { asm volatile("hlt"); }
 }

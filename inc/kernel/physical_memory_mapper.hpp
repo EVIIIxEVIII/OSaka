@@ -7,7 +7,10 @@
 #define RESERVED 0xA00000
 #define RESERVED_PAGES (RESERVED / PAGE_SIZE)
 
+typedef enum {
+    ALLOC_RESERVED,
+    ALLOC_GENERAL
+} AllocType;
+
 void  pmm_init();
-byte* pmm_alloc(u64 size);
-
-
+byte* pmm_alloc(u64 size, AllocType alloc_type = ALLOC_GENERAL);
