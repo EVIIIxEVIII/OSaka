@@ -1,8 +1,6 @@
 #include "kernel/virual_memory_mapper.hpp"
 #include "kernel/physical_memory_mapper.hpp"
 
-#define IDENTITY_MAP (RESERVED + 2*sizeof(VmRange))
-
 static VmRangeTable vm_range_table{};
 
 static VmRange* vm_range_root{};
@@ -42,26 +40,23 @@ static void map_page(u64 virt, u64 phys) {
     page_table[page_table_i] = page_table_entry;
 }
 
-//static u64
-
-static void map_identity_pages() {
-    for (u64 addr = 0x0; addr < IDENTITY_MAP; addr += PAGE_SIZE) {
+static void map_reserved_pages() {
+    for (u64 addr = 0x0; addr < RESERVED; addr += PAGE_SIZE) {
         map_page(addr, addr);
     }
 }
 
 void vmm_init() {
-
-    map_identity_pages();
+    map_reserved_pages();
 
     VmRange* vm_range = (VmRange*)pmm_alloc(4096);
     vm_range->start = 0x0;
-    vm_range->end = (u64)IDENTITY_MAP;
+    vm_range->end = (u64)RESERVED;
     vm_range->flag = VM_RESERVED;
     vm_range->next = nullptr;
 
     VmRange* vm_range_next = vm_range+1;
-    vm_range_next->start = (u64)IDENTITY_MAP;
+    vm_range_next->start = (u64)RESERVED;
     vm_range_next->end = (u64)((1ULL << 48) - 1);
     vm_range_next->flag = VM_FREE;
     vm_range_next->next = nullptr;
@@ -75,6 +70,20 @@ void vmm_init() {
 }
 
 byte* vmm_map(u64 size) {
+    VmRange* current;
+    u64 aligned_size = (size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    for (u64 i = 0; i < vm_range_table.count; ++i) {
+        current = vm_range_table.base + i;
+        u64 segment_size = current->end - current->start;
+
+        if (segment_size >= aligned_size && current->flag == VM_FREE) {
+            current->end = current->start + aligned_size;
+
+
+
+        }
+    }
 
 
 }

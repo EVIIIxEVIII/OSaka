@@ -160,7 +160,7 @@ extern "C" void kmain(BootData* boot_data) {
     memory = pmm_alloc(7);
     printk("Memory location: %x \n", memory);
 
-    memory = pmm_alloc(7);
+    memory = pmm_alloc(4097);
     printk("Memory location: %x \n", memory);
 
     memory = pmm_alloc(7);
