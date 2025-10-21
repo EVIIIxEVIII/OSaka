@@ -5,8 +5,6 @@
 #define VM_RANGE_SIZE (PAGE_SIZE * 10)
 
 static VmRangeTable vm_range_table{};
-
-static VmRange* vm_range_root{};
 static u64* page_global_directory = (u64*)pmm_alloc(4096);
 
 static u64* get_or_alloc_next(u64* table, u64 index) {
@@ -63,17 +61,15 @@ void vmm_init() {
     vm_range_next->end = (u64)((1ULL << 48) - 1);
     vm_range_next->flag = VM_FREE;
     vm_range_next->next = nullptr;
-
     vm_range->next = vm_range_next;
-    vm_range_root = vm_range;
 
     vm_range_table.base = vm_range;
     vm_range_table.count = 2;
     vm_range_table.capacity = VM_RANGE_SIZE / sizeof(VmRange);
+}
 
-    for (int i = 0; i < VM_RANGE_SIZE / PAGE_SIZE; ++i) {
-
-    }
+byte* vmm_get_base() {
+    return (byte*)vm_range_table.base;
 }
 
 static VmRange find_vm_range(u64 size) {

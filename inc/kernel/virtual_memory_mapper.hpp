@@ -37,6 +37,6 @@ typedef struct {
 
 void vmm_init();
 byte* vmm_map(u64 size);
-
+byte* vmm_get_base();
 
 

@@ -14,9 +14,9 @@ static void set_reserved(u64 page) {
 
 void pmm_init() {
     u64 reserved_pages = RESERVED / PAGE_SIZE;
-    for (u64 i = 0; i < reserved_pages; ++i) {
-        pmm_bitmap[i / 64] |= 1ULL << (i % 64);
-    }
+    //for (u64 i = 0; i < reserved_pages; ++i) {
+    //    pmm_bitmap[i / 64] |= 1ULL << (i % 64);
+    //}
 }
 
 byte* pmm_alloc(u64 size, AllocType alloc_type) {

@@ -114,29 +114,14 @@ extern "C" void keyboard_handler() {
     lapic_eoi();
 }
 
-BootData* copy_boot_data(BootData* boot_data, byte* memory) {
-    RSDP* rsdp_copy = (RSDP*)memory;
-    *rsdp_copy = *(boot_data->rsdp);
-    memory += sizeof(RSDP);
-
-    FramebufferInfo* fb_copy = (FramebufferInfo*)memory;
-    *fb_copy = boot_data->fb;
-    memory += sizeof(FramebufferInfo);
-
-
-    BootData* dst = (BootData*) memory;
-    dst->rsdp = rsdp_copy;
-    dst->fb = *fb_copy;
-
-    return dst;
-}
-
-extern "C" void kmain(BootData* temp_boot_data) {
+extern "C" void kmain(BootData* boot_data) {
     byte* reserved_memory = pmm_alloc(10*PAGE_SIZE, ALLOC_RESERVED);
-    BootData* boot_data = copy_boot_data(temp_boot_data, reserved_memory);
+    RSDP* rsdp = (RSDP*)reserved_memory;
     global_boot_data = boot_data;
 
-    console_set_fb(&global_boot_data->fb);
+    reserved_memory = boot_data->rsdp;
+
+    console_set_fb(&boot_data->fb);
     clear_screen(0xFFFFFFFF);
     pmm_init();
     vmm_init();
