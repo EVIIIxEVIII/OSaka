@@ -23,7 +23,7 @@ typedef struct VmRange {
 } VmRange;
 
 typedef enum PageTableEntryFlags {
-    PAGE_TABLE_ENTRY_CLEAR_FLAGS = ~((1ULL << 12) - 1),
+    PAGE_TABLE_ENTRY_CLEAR_FLAGS = 0xFFF, // clear lower 12 bits
     PAGE_TABLE_ENTRY_PRESENT_BIT = (1 << 0),
     PAGE_TABLE_ENTRY_READ_WRITE_BIT = (1 << 1),
     PAGE_TABLE_ENTRY_USER_SUPERVISOR_BIT = (1 << 2),
@@ -37,6 +37,6 @@ typedef struct {
 
 void vmm_init();
 byte* vmm_map(u64 size);
-byte* vmm_get_base();
-
+u64* vmm_get_base();
+void map_page(u64 virt, u64 phys, u32 log = 0);
 

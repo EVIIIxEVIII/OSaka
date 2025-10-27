@@ -5,7 +5,7 @@
 #define VM_RANGE_SIZE (PAGE_SIZE * 10)
 
 static VmRangeTable vm_range_table{};
-static u64* page_global_directory = (u64*)pmm_alloc(4096);
+static u64* page_global_directory;
 
 static u64* get_or_alloc_next(u64* table, u64 index) {
     if (table[index] & PAGE_TABLE_ENTRY_PRESENT_BIT) {
@@ -13,10 +13,10 @@ static u64* get_or_alloc_next(u64* table, u64 index) {
         return (u64*)(entry & PAGE_TABLE_ENTRY_CLEAR_FLAGS);
     }
 
-    u64* next_table_address = (u64*)pmm_alloc(4096);
+    u64* next_table_address = (u64*)pmm_alloc(4096, ALLOC_RESERVED);
     u64 next_table_entry = (u64)next_table_address;
 
-    next_table_entry &= PAGE_TABLE_ENTRY_CLEAR_FLAGS;
+    //next_table_entry &= PAGE_TABLE_ENTRY_CLEAR_FLAGS;
     next_table_entry |= PAGE_TABLE_ENTRY_PRESENT_BIT;
     next_table_entry |= PAGE_TABLE_ENTRY_READ_WRITE_BIT;
     table[index] = next_table_entry;
@@ -24,15 +24,23 @@ static u64* get_or_alloc_next(u64* table, u64 index) {
     return next_table_address;
 }
 
-static void map_page(u64 virt, u64 phys) {
+void map_page(u64 virt, u64 phys, u32 log) {
     u64 page_global_dir_i = (virt >> 39) & 0x1FF;
     u64 page_upper_dir_i = (virt >> 30) & 0x1FF;
     u64 page_middle_dir_i = (virt >> 21) & 0x1FF;
     u64 page_table_i = (virt >> 12) & 0x1FF;
 
+    if (log) printk("page global dir i: %u\n", page_global_dir_i);
+    if (log) printk("page upper dir i: %u\n", page_upper_dir_i);
+    if (log) printk("page middle dir i: %u\n", page_middle_dir_i);
+    if (log) printk("page table i: %u\n", page_table_i);
+
     u64* page_upper_dir = get_or_alloc_next(page_global_directory, page_global_dir_i);
+    if (log) printk("page upper dir addr: %x %x\n", page_upper_dir, page_global_directory[page_global_dir_i]);
     u64* page_middle_dir = get_or_alloc_next(page_upper_dir, page_upper_dir_i);
+    if (log) printk("page middle dir addr: %x\n", page_middle_dir);
     u64* page_table = get_or_alloc_next(page_middle_dir, page_middle_dir_i);
+    if (log) printk("page table addr: %x\n", page_table);
 
     u64 page_table_entry = phys;
     page_table_entry |= PAGE_TABLE_ENTRY_PRESENT_BIT;
@@ -48,8 +56,7 @@ static void map_reserved_pages() {
 }
 
 void vmm_init() {
-    map_reserved_pages();
-
+    page_global_directory = (u64*)pmm_alloc(4096, ALLOC_RESERVED);
     VmRange* vm_range = (VmRange*)pmm_alloc(VM_RANGE_SIZE);
     vm_range->start = 0x0;
     vm_range->end = (u64)RESERVED;
@@ -66,10 +73,11 @@ void vmm_init() {
     vm_range_table.base = vm_range;
     vm_range_table.count = 2;
     vm_range_table.capacity = VM_RANGE_SIZE / sizeof(VmRange);
+    map_reserved_pages();
 }
 
-byte* vmm_get_base() {
-    return (byte*)vm_range_table.base;
+u64* vmm_get_base() {
+    return (u64*)page_global_directory;
 }
 
 static VmRange find_vm_range(u64 size) {
