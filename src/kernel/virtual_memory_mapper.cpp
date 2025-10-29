@@ -16,7 +16,7 @@ static u64* get_or_alloc_next(u64* table, u64 index) {
     u64* next_table_address = (u64*)pmm_alloc(4096, ALLOC_RESERVED);
     u64 next_table_entry = (u64)next_table_address;
 
-    //next_table_entry &= PAGE_TABLE_ENTRY_CLEAR_FLAGS;
+    next_table_entry &= PAGE_TABLE_ENTRY_CLEAR_FLAGS;
     next_table_entry |= PAGE_TABLE_ENTRY_PRESENT_BIT;
     next_table_entry |= PAGE_TABLE_ENTRY_READ_WRITE_BIT;
     table[index] = next_table_entry;
@@ -24,64 +24,47 @@ static u64* get_or_alloc_next(u64* table, u64 index) {
     return next_table_address;
 }
 
-void map_page(u64 physaddr, u64 virtualaddr, u32 flags) {
-    u64 pdindex = (u64)virtualaddr >> 22;
-    u64 ptindex = (u64)virtualaddr >> 12 & 0x03FF;
+void map_page(u64 virt, u64 phys, u32 log) {
+    u64 page_global_dir_i = (virt >> 39) & 0x1FF;
+    u64 page_upper_dir_i = (virt >> 30) & 0x1FF;
+    u64 page_middle_dir_i = (virt >> 21) & 0x1FF;
+    u64 page_table_i = (virt >> 12) & 0x1FF;
 
-    u64 *pd = (u64 *)0xFFFFF000;
+    if (log) printk("page global dir i: %u\n", page_global_dir_i);
+    if (log) printk("page upper dir i: %u\n", page_upper_dir_i);
+    if (log) printk("page middle dir i: %u\n", page_middle_dir_i);
+    if (log) printk("page table i: %u\n", page_table_i);
 
-    u64 *pt = ((u64 *)0xFFC00000) + (0x400 * pdindex);
-    pt[ptindex] = ((u64)physaddr) | (flags & 0xFFF) | 0x01;
+    u64* page_upper_dir = get_or_alloc_next(page_global_directory, page_global_dir_i);
+    if (log) printk("page upper dir addr: %x\n", (u64)page_upper_dir);
+    u64* page_middle_dir = get_or_alloc_next(page_upper_dir, page_upper_dir_i);
+    if (log) printk("page middle dir addr: %x\n", page_middle_dir);
+    u64* page_table = get_or_alloc_next(page_middle_dir, page_middle_dir_i);
+    if (log) printk("page table addr: %x\n", page_table);
+
+    u64 page_table_entry = phys;
+    page_table_entry |= PAGE_TABLE_ENTRY_PRESENT_BIT;
+    page_table_entry |= PAGE_TABLE_ENTRY_READ_WRITE_BIT;
+
+    page_table[page_table_i] = page_table_entry;
 }
-
-
-//void map_page(u64 virt, u64 phys, u32 log) {
-//    u64 page_global_dir_i = (virt >> 39) & 0x1FF;
-//    u64 page_upper_dir_i = (virt >> 30) & 0x1FF;
-//    u64 page_middle_dir_i = (virt >> 21) & 0x1FF;
-//    u64 page_table_i = (virt >> 12) & 0x1FF;
-//
-//    u64 pdindex = virt >> 22;
-//    u64 ptindex = virt >> 12 & 0x03FF;
-//
-//    if (log) printk("page global dir i: %u\n", page_global_dir_i);
-//    if (log) printk("page upper dir i: %u\n", page_upper_dir_i);
-//    if (log) printk("page middle dir i: %u\n", page_middle_dir_i);
-//    if (log) printk("page table i: %u\n", page_table_i);
-//
-//    u64* page_upper_dir = get_or_alloc_next(page_global_directory, page_global_dir_i);
-//    if (log) printk("page upper dir addr: %x %x\n", page_upper_dir, page_global_directory[page_global_dir_i]);
-//    u64* page_middle_dir = get_or_alloc_next(page_upper_dir, page_upper_dir_i);
-//    if (log) printk("page middle dir addr: %x\n", page_middle_dir);
-//    u64* page_table = get_or_alloc_next(page_middle_dir, page_middle_dir_i);
-//    if (log) printk("page table addr: %x\n", page_table);
-//
-//    u64 page_table_entry = phys;
-//    page_table_entry |= PAGE_TABLE_ENTRY_PRESENT_BIT;
-//    page_table_entry |= PAGE_TABLE_ENTRY_READ_WRITE_BIT;
-//
-//    page_table[page_table_i] = page_table_entry;
-//}
 
 static void map_reserved_pages() {
     for (u64 addr = 0x0; addr < RESERVED; addr += PAGE_SIZE) {
-        map_page(addr, addr, 0x0);
+        map_page(addr, addr);
     }
 }
 
 void vmm_init() {
     page_global_directory = (u64*)pmm_alloc(4096, ALLOC_RESERVED);
-    map_page((u64)page_global_directory, (u64)page_global_directory, 0x0);
 
     VmRange* vm_range = (VmRange*)pmm_alloc(VM_RANGE_SIZE);
-    map_page((u64)vm_range, (u64)vm_range, 0x0);
     vm_range->start = 0x0;
     vm_range->end = (u64)RESERVED;
     vm_range->flag = VM_RESERVED;
     vm_range->next = nullptr;
 
     VmRange* vm_range_next = vm_range+1;
-    map_page((u64)vm_range_next, (u64)vm_range_next, 0x0);
     vm_range_next->start = (u64)RESERVED;
     vm_range_next->end = (u64)((1ULL << 48) - 1);
     vm_range_next->flag = VM_FREE;
@@ -91,7 +74,7 @@ void vmm_init() {
     vm_range_table.base = vm_range;
     vm_range_table.count = 2;
     vm_range_table.capacity = VM_RANGE_SIZE / sizeof(VmRange);
-    map_reserved_pages();
+    //map_reserved_pages();
 }
 
 u64* vmm_get_base() {
@@ -150,7 +133,7 @@ byte* vmm_map(u64 size) {
     for (u64 i = 0; i < pages; ++i) {
         u64 vitual_mem = vm_range.start + (PAGE_SIZE * i);
         u64 phys_mem = physical_memory + (PAGE_SIZE * i);
-        //map_page(vitual_mem, phys_mem);
+        map_page(vitual_mem, phys_mem);
     }
 
     return (byte*)vm_range.start;

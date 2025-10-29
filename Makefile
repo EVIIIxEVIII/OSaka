@@ -59,7 +59,8 @@ run: image
 		-bios $(OVMF) \
 		-drive format=raw,file=$(IMG),if=ide \
 		-device isa-debugcon,iobase=0xE9,chardev=dbg \
-		-chardev stdio,id=dbg
+		-chardev stdio,id=dbg \
+		-d int
 
 clean:
 	rm -rf $(BUILDDIR) $(dir $(ISODIR)) $(IMG)

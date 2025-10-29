@@ -159,41 +159,64 @@ void setup_interrupt_table(BootData* boot_data) {
 }
 
 void turn_on_virtual_memory(u64* page_table_base) {
-    outb(0xE9, 'A');
+    //outb(0xE9, 'A');
     __asm__ __volatile__(
         "mov cr3, rax"
         :
         : "a"(page_table_base)
         : "memory"
     );
-    outb(0xE9, 'B');
+    //outb(0xE9, 'B');
 }
 
 extern "C" void page_fault_handler() {
     outb(0xE9, 'F');
 }
 
+
+void walk_page_table(u64 virt) {
+    u64 pml4_i = (virt >> 39) & 0x1FF;
+    u64 pdpt_i = (virt >> 30) & 0x1FF;
+    u64 pd_i   = (virt >> 21) & 0x1FF;
+    u64 pt_i   = (virt >> 12) & 0x1FF;
+
+    u64 *pml4 = vmm_get_base();
+    printk("pml4: %x \n", pml4);
+    u64 *pdpt = (u64 *)(pml4[pml4_i] & 0xFFFFF000);
+    printk("pdpt: %x \n", pdpt);
+    u64 *pd   = (u64 *)(pdpt[pdpt_i] & 0xFFFFF000);
+    printk("pd: %x \n", pd);
+    u64 *pt   = (u64 *)(pd[pd_i] & 0xFFFFF000);
+    printk("pt: %x \n", pt);
+
+    u64 entry = pt[pt_i];
+    printk("Entry for %x = %x\n", virt, entry);
+}
+
 extern "C" void kmain(BootData* temp_boot_data) {
-
-    //byte* reserved_memory = pmm_alloc(10*PAGE_SIZE, ALLOC_RESERVED);
-    //BootData* boot_data = copy_boot_data(temp_boot_data, reserved_memory);
-    //global_boot_data = boot_data;
-
-    //console_set_fb(&global_boot_data->fb);
-    //clear_screen(0xFFFFFFFF);
-
-    //set_idt_gate(0xD, (void*)page_fault_stub, 0x08, 0x8E);
-
     pmm_init();
     vmm_init();
 
-    u64* page_table_base = (u64*)vmm_get_base();
+    byte* reserved_memory = pmm_alloc(10*PAGE_SIZE, ALLOC_RESERVED);
+    BootData* boot_data = copy_boot_data(temp_boot_data, reserved_memory);
+    global_boot_data = boot_data;
+
+    console_set_fb(&global_boot_data->fb);
+    clear_screen(0xFFFFFFFF);
+
     u64 code_addr = 0x100000;
-    for (u64 addr = code_addr; addr < code_addr + (PAGE_SIZE * 8); addr += PAGE_SIZE) {
+    for (u64 addr = code_addr; addr < code_addr + (PAGE_SIZE * 32); addr += PAGE_SIZE) {
         map_page(addr, addr, 0x0);
     }
 
-    turn_on_virtual_memory(page_table_base);
+    walk_page_table(code_addr);
+    walk_page_table(0x000000000010c330);
+    //map_page(0x101000, 0x101000, 0x1);
+    //walk_page_table(code_addr);
+    //walk_page_table(0x101000);
+
+    turn_on_virtual_memory(vmm_get_base());
+
     //printk("Page table base: %x \n", page_table_base);
 
     //map_page((u64)0x100000, (u64)0x100000);
