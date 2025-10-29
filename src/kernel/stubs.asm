@@ -1,7 +1,8 @@
 global keyboard_stub
-global isr_test_stub
-global timer_stub
+global page_fault_stub
+
 extern keyboard_handler
+extern page_fault_handler
 
 section .text
 
@@ -45,6 +46,14 @@ section .text
 keyboard_stub:
     PUSH_REGS
     call keyboard_handler
+    POP_REGS
+    iretq
+
+page_fault_stub:
+    PUSH_REGS
+
+    call page_fault_handler
+
     POP_REGS
     iretq
 

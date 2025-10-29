@@ -13,8 +13,7 @@ extern "C" void set_idt_gate(u8 vec, void* handler, u16 selector, u8 type_attr);
 extern "C" void load_idt();
 extern "C" void load_gdt64();
 extern "C" void keyboard_stub();
-extern "C" void isr_test_stub();
-extern "C" void timer_stub();
+extern "C" void page_fault_stub();
 
 #define LAPIC_BASE 0xFEE00000
 #define LAPIC_EOI  0xB0
@@ -160,46 +159,62 @@ void setup_interrupt_table(BootData* boot_data) {
 }
 
 void turn_on_virtual_memory(u64* page_table_base) {
+    outb(0xE9, 'A');
     __asm__ __volatile__(
         "mov cr3, rax"
         :
         : "a"(page_table_base)
         : "memory"
     );
+    outb(0xE9, 'B');
+}
+
+extern "C" void page_fault_handler() {
+    outb(0xE9, 'F');
 }
 
 extern "C" void kmain(BootData* temp_boot_data) {
+
+    //byte* reserved_memory = pmm_alloc(10*PAGE_SIZE, ALLOC_RESERVED);
+    //BootData* boot_data = copy_boot_data(temp_boot_data, reserved_memory);
+    //global_boot_data = boot_data;
+
+    //console_set_fb(&global_boot_data->fb);
+    //clear_screen(0xFFFFFFFF);
+
+    //set_idt_gate(0xD, (void*)page_fault_stub, 0x08, 0x8E);
+
     pmm_init();
     vmm_init();
 
-    byte* reserved_memory = pmm_alloc(10*PAGE_SIZE, ALLOC_RESERVED);
-    BootData* boot_data = copy_boot_data(temp_boot_data, reserved_memory);
-    global_boot_data = boot_data;
+    u64* page_table_base = (u64*)vmm_get_base();
+    u64 code_addr = 0x100000;
+    for (u64 addr = code_addr; addr < code_addr + (PAGE_SIZE * 8); addr += PAGE_SIZE) {
+        map_page(addr, addr, 0x0);
+    }
 
-    console_set_fb(&global_boot_data->fb);
-    clear_screen(0xFFFFFFFF);
+    turn_on_virtual_memory(page_table_base);
+    //printk("Page table base: %x \n", page_table_base);
 
-    u64* page_table_base = vmm_get_base();
+    //map_page((u64)0x100000, (u64)0x100000);
+    //map_page((u64)0x101000, (u64)0x101000);
+    //map_page((u64)0xB0, (u64)0xB0);
+    //map_page((u64)0xFEE00000, (u64)0xFEE00000);
+    //map_page((u64)global_boot_data->fb.base, (u64)global_boot_data->fb.base, 1);
+    //u64 virt = (u64)global_boot_data->fb.base;
 
-    map_page((u64)0x100000, (u64)0x100000);
-    map_page((u64)0x101000, (u64)0x101000);
-    map_page((u64)0xB0, (u64)0xB0);
-    map_page((u64)0xFEE00000, (u64)0xFEE00000);
-    map_page((u64)global_boot_data->fb.base, (u64)global_boot_data->fb.base, 1);
-    u64 virt = (u64)global_boot_data->fb.base;
+    //u64 first_table_i = (virt >> 39) & 0x1FF;
+    //u64 second_table_i = (virt >> 30) & 0x1FF;
+    //u64 third_table_i = (virt >> 21) & 0x1FF;
+    //u64 fourth_table_i = (virt >> 12) & 0x1FF;
 
-    u64 first_table_i = (virt >> 39) & 0x1FF;
-    u64 second_table_i = (virt >> 30) & 0x1FF;
-    u64 third_table_i = (virt >> 21) & 0x1FF;
-    u64 fourth_table_i = (virt >> 12) & 0x1FF;
+    //printk("===========================\n");
 
-    printk("===========================\n");
-
-    printk("Virtual adddress: %x\n", virt);
-    printk("First table idx: %u\n", first_table_i);
-    printk("Second table idx: %u\n", second_table_i);
-    printk("Third table idx: %u\n", third_table_i);
-    printk("Fourth table idx: %u\n", fourth_table_i);
+    //printk("Virtual adddress: %x\n", virt);
+    //printk("First table idx: %u\n", first_table_i);
+    //printk("Second table idx: %u\n", second_table_i);
+    //printk("Third table idx: %u\n", third_table_i);
+    //printk("Fourth table idx: %u\n", fourth_table_i);
 
     //#define PAGE_ADDR_MASK (~0xFFFULL)
 
@@ -221,7 +236,6 @@ extern "C" void kmain(BootData* temp_boot_data) {
     //asm volatile("hlt");
 
     //setup_interrupt_table(boot_data);
-    //turn_on_virtual_memory(page_table_base);
 
     //printk("Boot data memory location: %x \n", reserved_memory);
 

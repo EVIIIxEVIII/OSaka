@@ -39,9 +39,6 @@ set_idt_gate:
 ; 4 bytes for the last 32 bits of the handler address
 ; 4 bytes are reserved so they are 0
 
-    mov al, 'B'
-    out 0xE9, al
-
     movzx rax, dil
     shl   rax, 4 ; convert the index to byte offset (16 bytes per entry)
     lea   r8,  [idt_table]
