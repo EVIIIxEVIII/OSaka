@@ -5,94 +5,6 @@
 #include "shared/shared.h"
 #include "x86_64/efibind.h"
 
-#define APIC_LAPIC        0
-#define APIC_IO_APIC      1
-#define APIC_IO_APIC_ISO  2
-#define APIC_IO_APIC_NIS  3
-#define APIC_LAPIC_NIS    4
-#define APIC_LAPIC_AO     5
-#define APIC_LOCAL_2xAPIC 9
-
-#define MAX_CPUS   32
-#define MAX_IOAPIC 4
-#define MAX_ISO    32
-
-typedef struct PACK {
-  char signature[4];
-  uint32_t length;
-  uint8_t revision;
-  uint8_t checksum;
-  char oem_id[6];
-  char oem_table_id[8];
-  uint32_t oem_revision;
-  uint32_t creator_id;
-  uint32_t creator_revision;
-} SDTHeader;
-
-typedef struct PACK {
-    SDTHeader header;
-    u64       entry[];
-} XSDT;
-
-typedef struct PACK {
-    u8 entry_type;
-    u8 record_len;
-} APICHeader;
-
-typedef struct PACK {
-    APICHeader header;
-    u8         acpi_processor_id;
-    u8         apic_id;
-    u32        flags;
-} APICEntryLocalAPIC;
-
-typedef struct PACK {
-    APICHeader header;
-    u8         io_apic_id;
-    u8         reserved;
-    u32        io_apic_address;
-    u32        global_system_interrupt_base;
-} APICEntryIOAPIC;
-
-typedef struct PACK {
-    APICHeader header;
-    u8         bus_source;
-    u8         irq_source;
-    u32        global_system_interrupt;
-    u16        flags;
-} APICEntryIOAPICSourceOverride;
-
-typedef struct PACK {
-    SDTHeader   header;
-    u32         lapic_address;
-    u32         pic_8259_support; // legacy not used
-    byte        entries[];
-} MADT;
-
-typedef struct PACK {
-    SDTHeader header;
-    u32       lapic_address;
-    u32       pic_8259_support; //legacy not used
-
-    u64       lapic_count;
-    u64       io_apic_count;
-    u64       io_apic_source_overrides_count;
-
-    APICEntryLocalAPIC            lapics[MAX_CPUS];
-    APICEntryIOAPIC               io_apics[MAX_IOAPIC];
-    APICEntryIOAPICSourceOverride io_apic_source_overrides[MAX_ISO];
-} APICEntries;
-
-static void dump_bytes(void *addr, u64 len) {
-    u64 *p = (u64*)addr;
-    for (u64 i = 0; i < len; i += 16) {
-        Print(L"%08lx: ", (u64)addr + i);
-        for (u64 j = 0; j < 16 && i + j < len; ++j)
-            Print(L"%02x ", p[i + j]);
-        Print(L"\r\n");
-    }
-}
-
 static EFI_GRAPHICS_OUTPUT_PROTOCOL *get_gop(void) {
     EFI_GUID gop_guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     EFI_GRAPHICS_OUTPUT_PROTOCOL *gop;
@@ -148,58 +60,6 @@ static int checksum_ok(const void *p, u64 len) {
     return s == 0;
 }
 
-static void parseApic(SDTHeader* entry) {
-    Print(L"Signature: %.4a\r\n", entry->signature);
-    MADT* madt = (MADT*) entry;
-
-    APICEntries apic;
-    apic.header = madt->header;
-    apic.pic_8259_support = madt->pic_8259_support;
-
-    apic.lapic_count = 0;
-    apic.io_apic_source_overrides_count = 0;
-    apic.io_apic_count = 0;
-
-    Print(L"Local APIC addr: %u\n", madt->lapic_address);
-    Print(L"Legacy 8259: %u\n", madt->pic_8259_support);
-
-    uint32_t remaining = madt->header.length - sizeof(MADT);
-    Print(L"Entires Length: %u\n", remaining);
-
-    uint8_t* ptr = (uint8_t*)madt->entries;
-    uint8_t* end = (uint8_t*)madt + madt->header.length;
-
-    while (ptr < end) {
-        APICHeader* header = (APICHeader*)ptr;
-        u8 type = header->entry_type;
-        u8 len = header->record_len;
-
-        Print(L"Type: %u, Length: %u\n", type, len);
-        switch (type) {
-            case APIC_IO_APIC: {
-                apic.io_apics[apic.io_apic_count++] = *(APICEntryIOAPIC*)ptr;
-                break;
-            }
-
-            case APIC_IO_APIC_ISO: {
-                apic.io_apic_source_overrides[apic.io_apic_source_overrides_count++] = *(APICEntryIOAPICSourceOverride*)ptr;
-                break;
-           }
-
-           case APIC_LAPIC: {
-                apic.lapics[apic.lapic_count++] = *(APICEntryLocalAPIC*)ptr;
-                break;
-           }
-        }
-
-        ptr += header->record_len;
-    }
-
-    Print(L"Found %u IO APICs\n", apic.io_apic_count);
-    Print(L"Found %u IO APIC ISOs\n", apic.io_apic_source_overrides_count);
-    Print(L"Found %u LAPICS\n", apic.lapic_count);
-}
-
 static RSDP* discoverRsdp(EFI_SYSTEM_TABLE* system_table) {
     RSDP* rsdp;
     for (u64 i = 0; i < system_table->NumberOfTableEntries; ++i) {
@@ -216,17 +76,6 @@ static RSDP* discoverRsdp(EFI_SYSTEM_TABLE* system_table) {
         if (rsdp && checksum_ok(rsdp, rsdp->length)) {
             Print(L"Rsdp signature: %.8a\r\n", rsdp->signature);
             return rsdp;
-        }
-    }
-
-    XSDT* xsdt = (XSDT*)rsdp->xsdt_address;
-    u32 table_entries = (xsdt->header.length - sizeof(SDTHeader)) / 8;
-
-    for (u32 i = 0; i < table_entries; ++i) {
-        SDTHeader* header = (SDTHeader*)xsdt->entry[i];
-
-        if (CompareMem(header->signature, "APIC", 4) == 0) {
-            parseApic(header);
         }
     }
 
@@ -262,6 +111,10 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     BootData* boot_dt = (BootData*)BootData_physical_address;
     boot_dt->fb = framebuffer;
     boot_dt->rsdp = discoverRsdp(system_table);
+    if (!boot_dt) {
+        Print(L"Failed to discover RSDP!");
+        return EFI_SUCCESS;
+    }
 
     EFI_FILE_HANDLE volume = get_volume(image_handle);
     CHAR16 *kernel_file_name = L"kernel.bin";

@@ -159,14 +159,14 @@ void setup_interrupt_table(BootData* boot_data) {
 }
 
 void turn_on_virtual_memory(u64* page_table_base) {
-    //outb(0xE9, 'A');
+    outb(0xE9, 'A');
     __asm__ __volatile__(
         "mov cr3, rax"
         :
         : "a"(page_table_base)
         : "memory"
     );
-    //outb(0xE9, 'B');
+    outb(0xE9, 'B');
 }
 
 extern "C" void page_fault_handler() {
