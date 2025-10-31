@@ -173,7 +173,6 @@ extern "C" void page_fault_handler() {
     outb(0xE9, 'F');
 }
 
-
 void walk_page_table(u64 virt) {
     u64 pml4_i = (virt >> 39) & 0x1FF;
     u64 pdpt_i = (virt >> 30) & 0x1FF;
@@ -198,25 +197,38 @@ extern "C" void kmain(BootData* temp_boot_data) {
     vmm_init();
 
     byte* reserved_memory = pmm_alloc(10*PAGE_SIZE, ALLOC_RESERVED);
+    for (u64 addr = (u64)reserved_memory; addr < ((u64)reserved_memory + 10*PAGE_SIZE); addr += PAGE_SIZE) {
+        map_page(addr, addr);
+    }
+
     BootData* boot_data = copy_boot_data(temp_boot_data, reserved_memory);
     global_boot_data = boot_data;
 
-    console_set_fb(&global_boot_data->fb);
+    console_set_fb(&boot_data->fb);
     clear_screen(0xFFFFFFFF);
 
     u64 code_addr = 0x100000;
     for (u64 addr = code_addr; addr < code_addr + (PAGE_SIZE * 32); addr += PAGE_SIZE) {
-        map_page(addr, addr, 0x0);
+        map_page(addr, addr);
     }
 
-    walk_page_table(code_addr);
-    walk_page_table(0x000000000010c330);
-    //map_page(0x101000, 0x101000, 0x1);
-    //walk_page_table(code_addr);
-    //walk_page_table(0x101000);
+
+    u64 frame_buffer_size = boot_data->fb.height * boot_data->fb.width * sizeof(u32);
+    u64 frame_buffer_pages = (frame_buffer_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    u64 frame_buffer_addr = (u64)boot_data->fb.base;
+    for (u64 addr = frame_buffer_addr; addr < (frame_buffer_addr + frame_buffer_pages * PAGE_SIZE); addr += PAGE_SIZE) {
+        map_page(addr, addr);
+    }
+
+    // 800 1280
+    printk("Height, wight: %u %u\n", boot_data->fb.height, boot_data->fb.width);
+    map_page((u64)boot_data->fb.base, (u64)boot_data->fb.base);
+    printk("Turning on Virtual memory\n");
 
     turn_on_virtual_memory(vmm_get_base());
+    printk("Frame buffer is now mapped!");
 
+    (void)*(volatile u64*)boot_data->fb.base;
     //printk("Page table base: %x \n", page_table_base);
 
     //map_page((u64)0x100000, (u64)0x100000);
