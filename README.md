@@ -1,4 +1,4 @@
-# Small OS
+# OSaka
 A small OS written from scratch booted by a custom UEFI bootloader.
 - [X] UEFI Bootloader which loads the kernel in long long mode
 - [X] Basic screen output to the UEFI provided frame buffer 
