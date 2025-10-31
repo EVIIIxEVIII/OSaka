@@ -3,19 +3,14 @@
 #include "shared/types.h"
 #include "kernel/font.hpp"
 #include "kernel/virtual_memory_mapper.hpp"
-#include "kernel/physical_memory_mapper.hpp"
 
 void console_init(FramebufferInfo *p) {
     fb = *p;
 
     u64 frame_buffer_size = fb.height * fb.width * sizeof(u32);
-    u64 frame_buffer_pages = (frame_buffer_size + PAGE_SIZE - 1) / PAGE_SIZE;
     u64 frame_buffer_addr = (u64)fb.base;
 
-    for (u64 i = 0; i < frame_buffer_pages; ++i) {
-        u64 addr = frame_buffer_addr + i * PAGE_SIZE;
-        map_page(addr, addr);
-    }
+    vmm_identity_map(frame_buffer_addr, frame_buffer_size);
 }
 
 void putpx(u64 x, u64 y, u32 col) {
@@ -35,6 +30,8 @@ void putchar(char c) {
     if (c == '\n') {
         cursorX = 0;
         cursorY++;
+        putchar('>');
+        putchar(' ');
         return;
     }
 
@@ -44,9 +41,9 @@ void putchar(char c) {
 
         for (u8 j = 0; j < 8; ++j) {
             if (row & (0x80u >> j)) {
-                putpx((cursorX*8)+j, (cursorY*16)+i, 0x0);
-            } else {
                 putpx((cursorX*8)+j, (cursorY*16)+i, 0xFFFFFFFF);
+            } else {
+                putpx((cursorX*8)+j, (cursorY*16)+i, 0x0);
             }
         }
     }

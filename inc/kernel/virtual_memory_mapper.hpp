@@ -16,8 +16,8 @@ typedef enum {
 } VmRangeFlags;
 
 typedef struct VmRange {
-    u64 start;
-    u64 end;
+    u64 start; // inclusive
+    u64 end;   // exclusive
     VmRangeFlags flag;
     VmRange* next;
 } VmRange;
@@ -39,4 +39,4 @@ void vmm_init();
 byte* vmm_map(u64 size);
 u64* vmm_get_base();
 void map_page(u64 virt, u64 phys);
-
+void vmm_identity_map(u64 addr, u64 size);

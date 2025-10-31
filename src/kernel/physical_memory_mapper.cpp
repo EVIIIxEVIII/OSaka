@@ -17,23 +17,9 @@ void pmm_init() {
     //}
 }
 
-byte* pmm_alloc(u64 size, AllocType alloc_type) {
-    u64 start_from = -1;
-    u64 end_at = -1;
-
-    switch (alloc_type) {
-        case ALLOC_GENERAL: {
-            start_from = RESERVED_PAGES;
-            end_at = TOTAL_PAGES;
-            break;
-        }
-
-        case ALLOC_RESERVED: {
-            start_from = 0;
-            end_at = RESERVED_PAGES;
-            break;
-        }
-    }
+byte* pmm_alloc(u64 size) {
+    u64 start_from = 0x0;
+    u64 end_at = TOTAL_MEM;
 
     u64 aligned_size = (size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
     u64 pages = aligned_size / PAGE_SIZE;

@@ -13,4 +13,4 @@ typedef enum {
 } AllocType;
 
 void  pmm_init();
-byte* pmm_alloc(u64 size, AllocType alloc_type = ALLOC_GENERAL);
+byte* pmm_alloc(u64 size);

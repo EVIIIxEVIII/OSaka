@@ -1,8 +1,10 @@
 #include "kernel/virtual_memory_mapper.hpp"
 #include "kernel/console.hpp"
 #include "kernel/physical_memory_mapper.hpp"
+#include <assert.h>
 
 #define VM_RANGE_SIZE (PAGE_SIZE * 10)
+#define MEM_ALIGN(addr) ((addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))
 
 static VmRangeTable vm_range_table{};
 static u64* page_global_directory;
@@ -13,7 +15,7 @@ static u64* get_or_alloc_next(u64* table, u64 index) {
         return (u64*)(entry & PAGE_TABLE_ENTRY_CLEAR_FLAGS);
     }
 
-    u64* next_table_address = (u64*)pmm_alloc(4096, ALLOC_RESERVED);
+    u64* next_table_address = (u64*)pmm_alloc(4096);
     u64 next_table_entry = (u64)next_table_address;
 
     next_table_entry &= PAGE_TABLE_ENTRY_CLEAR_FLAGS;
@@ -41,30 +43,76 @@ void map_page(u64 virt, u64 phys) {
     page_table[page_table_i] = page_table_entry;
 }
 
+void vmm_reserve(u64 addr, u64 size) {
+    u64 aligned_addr = addr & ~(PAGE_SIZE - 1);
+    u64 aligned_size = MEM_ALIGN(size + (addr - aligned_addr));
+
+    for (u64 i = 0; i < vm_range_table.count; ++i) {
+        VmRange* current = vm_range_table.base + i;
+
+        if (current->flag == VM_FREE && current->start <= aligned_addr && current->end >= (aligned_addr + aligned_size)) {
+            VmRange* used = &vm_range_table.base[vm_range_table.count++];
+            VmRange* after = &vm_range_table.base[vm_range_table.count++];
+
+            used->start = aligned_addr;
+            used->end = aligned_addr + aligned_size;
+            used->flag = VM_USED;
+
+            after->start = used->end;
+            after->end = current->end;
+            after->flag = VM_FREE;
+
+            current->end = used->start;
+
+            used->next = after;
+            after->next = current->next;
+            current->next = used;
+
+            for (u64 j = 0; j < aligned_size / PAGE_SIZE; ++j) {
+                u64 addr = aligned_addr + (j * PAGE_SIZE);
+                map_page(addr, addr);
+            }
+            break;
+        }
+    }
+}
+
+void vmm_identity_map(u64 addr, u64 size) {
+    u64 aligned_addr = addr & ~(PAGE_SIZE - 1);
+    u64 aligned_size = MEM_ALIGN(size + (addr - aligned_addr));
+    vmm_reserve(addr, size);
+
+    for (u64 i = 0; i < aligned_size / PAGE_SIZE; ++i) {
+        u64 addr = aligned_addr + (i * PAGE_SIZE);
+        map_page(addr, addr);
+    }
+}
+
 void vmm_init() {
-    page_global_directory = (u64*)pmm_alloc(4096, ALLOC_RESERVED);
+    page_global_directory = (u64*)pmm_alloc(4096);
 
     VmRange* vm_range = (VmRange*)pmm_alloc(VM_RANGE_SIZE);
+    for (u64 j = 0; j < VM_RANGE_SIZE / PAGE_SIZE; ++j) {
+        u64 addr = (u64)vm_range + (j * PAGE_SIZE);
+        map_page(addr, addr);
+    }
+
     vm_range->start = 0x0;
-    vm_range->end = (u64)RESERVED;
-    vm_range->flag = VM_RESERVED;
+    vm_range->end = (u64)(1ULL << 48);
+    vm_range->flag = VM_FREE;
     vm_range->next = nullptr;
 
-    VmRange* vm_range_next = vm_range+1;
-    vm_range_next->start = (u64)RESERVED;
-    vm_range_next->end = (u64)((1ULL << 48) - 1);
-    vm_range_next->flag = VM_FREE;
-    vm_range_next->next = nullptr;
-    vm_range->next = vm_range_next;
-
     vm_range_table.base = vm_range;
-    vm_range_table.count = 2;
+    vm_range_table.count = 1;
     vm_range_table.capacity = VM_RANGE_SIZE / sizeof(VmRange);
+
+    vmm_reserve((u64)vm_range, VM_RANGE_SIZE);
 }
 
 u64* vmm_get_base() {
     return (u64*)page_global_directory;
 }
+
 
 static VmRange find_vm_range(u64 size) {
     VmRange* current;
@@ -109,7 +157,7 @@ byte* vmm_map(u64 size) {
         return nullptr;
     }
 
-    u64 physical_memory = (u64)pmm_alloc(size, ALLOC_GENERAL);
+    u64 physical_memory = (u64)pmm_alloc(size);
     if (!physical_memory) {
         printk("Failed to allocate physical pages! \n");
         return nullptr;

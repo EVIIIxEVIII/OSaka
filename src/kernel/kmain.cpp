@@ -18,7 +18,6 @@ extern "C" void keyboard_stub();
 extern "C" void page_fault_stub();
 
 #define LAPIC_BASE 0xFEE00000
-#define LAPIC_EOI  0xB0
 static inline uint8_t inb(uint16_t port) {
     uint8_t value;
     __asm__ __volatile__ (
@@ -37,7 +36,7 @@ static inline void outb(u16 port, u8 value) {
     );
 }
 
-u64 compareMem(const void* dest, const void* src, u64 count) {
+u64 compare_mem(const void* dest, const void* src, u64 count) {
     byte* dest_b = (byte*) dest;
     byte* src_b = (byte*) src;
 
@@ -101,6 +100,10 @@ void setup_keyboard(const APICEntryIOAPIC* io_apic, const APICEntryLocalAPIC* la
 
     write_ioapic_register(ioapic_base, 0x10 + 2 * irq,     (uint32_t)rte);
     write_ioapic_register(ioapic_base, 0x10 + 2 * irq + 1, (uint32_t)(rte >> 32));
+
+    outb(0xA1, 0xFF);
+    outb(0x21, 0xFF);
+    set_idt_gate(0x21, (void*)keyboard_stub, 0x08, 0x8E);
 }
 
 extern "C" void keyboard_handler() {
@@ -135,11 +138,6 @@ void setup_interrupt_table(BootData* boot_data) {
     __asm__ __volatile__("cli");
     load_gdt64();
 
-    outb(0xA1, 0xFF);
-    outb(0x21, 0xFF);
-
-    set_idt_gate(0x21, (void*)keyboard_stub, 0x08, 0x8E);
-
     RSDP* rsdp = boot_data->rsdp;
     XSDT* xsdt = (XSDT*)rsdp->xsdt_address;
     u32 table_entries = (xsdt->header.length - sizeof(SDTHeader)) / 8;
@@ -148,7 +146,7 @@ void setup_interrupt_table(BootData* boot_data) {
     for (u32 i = 0; i < table_entries; ++i) {
         SDTHeader* header = (SDTHeader*)xsdt->entry[i];
 
-        if (compareMem(header->signature, "APIC", 4) == 0) {
+        if (compare_mem(header->signature, "APIC", 4) == 0) {
             apicEntries = parseMADT(header);
         }
     }
@@ -157,6 +155,7 @@ void setup_interrupt_table(BootData* boot_data) {
     APICEntryLocalAPIC lapic = apicEntries.lapics[0];
 
     setup_keyboard(&io_apic, &lapic);
+
     load_idt();
     __asm__ __volatile__("sti");
 }
@@ -199,34 +198,28 @@ extern "C" void kmain(BootData* temp_boot_data) {
     pmm_init();
     vmm_init();
 
-    byte* reserved_memory = pmm_alloc(10*PAGE_SIZE, ALLOC_RESERVED);
-    for (u64 addr = (u64)reserved_memory; addr < ((u64)reserved_memory + 10*PAGE_SIZE); addr += PAGE_SIZE) {
-        map_page(addr, addr);
-    }
+    byte* reserved_memory = pmm_alloc(10 * PAGE_SIZE);
+    vmm_identity_map((u64)reserved_memory, 10 * PAGE_SIZE);
 
     BootData* boot_data = copy_boot_data(temp_boot_data, reserved_memory);
     global_boot_data = boot_data;
 
     console_init(&boot_data->fb);
-    clear_screen(0xFFFFFFFF);
+    clear_screen(0x0);
 
     u64 kernel_code_size = (boot_data->kernel_size + PAGE_SIZE - 1) & ~(PAGE_SIZE-1);
     u64 kernel_size = (kernel_code_size + STACK_SIZE + 2*PAGE_SIZE - 1) & ~(PAGE_SIZE-1);
-    u64 kernel_pages = kernel_size / PAGE_SIZE;
-    for (u64 i = 0; i < kernel_pages; ++i) {
-        u64 addr = KERNEL_ADDR + i * PAGE_SIZE;
-        map_page(addr, addr);
-    }
+    vmm_identity_map(KERNEL_ADDR, kernel_size);
 
     printk("Turning on Virtual memory\n");
 
-    map_page((u64)0xB0, (u64)0xB0);
-    map_page((u64)0xFEE00000, (u64)0xFEE00000);
+    vmm_identity_map((u64)0xFEE00000, PAGE_SIZE);
     setup_interrupt_table(boot_data);
     turn_on_virtual_memory(vmm_get_base());
+
     printk("Frame buffer is now mapped!\n");
-    printk("Kernel size: %u\n", boot_data->kernel_size);
-    printk("Kernel size: %u\n", kernel_size);
+    //printk("Kernel size: %u\n", boot_data->kernel_size);
+    //printk("Kernel size: %u\n", kernel_size);
 
     //printk("Boot data memory location: %x \n", reserved_memory);
 
