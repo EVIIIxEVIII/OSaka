@@ -8,6 +8,8 @@
 #include "kernel/virtual_memory_mapper.hpp"
 
 BootData* global_boot_data;
+#define KERNEL_ADDR 0x100000
+#define STACK_SIZE 32768
 
 extern "C" void set_idt_gate(u8 vec, void* handler, u16 selector, u8 type_attr);
 extern "C" void load_idt();
@@ -124,6 +126,7 @@ BootData* copy_boot_data(BootData* boot_data, byte* memory) {
     BootData* dst = (BootData*) memory;
     dst->rsdp = rsdp_copy;
     dst->fb = *fb_copy;
+    dst->kernel_size = boot_data->kernel_size;
 
     return dst;
 }
@@ -204,73 +207,26 @@ extern "C" void kmain(BootData* temp_boot_data) {
     BootData* boot_data = copy_boot_data(temp_boot_data, reserved_memory);
     global_boot_data = boot_data;
 
-    console_set_fb(&boot_data->fb);
+    console_init(&boot_data->fb);
     clear_screen(0xFFFFFFFF);
 
-    u64 code_addr = 0x100000;
-    for (u64 addr = code_addr; addr < code_addr + (PAGE_SIZE * 32); addr += PAGE_SIZE) {
+    u64 kernel_code_size = (boot_data->kernel_size + PAGE_SIZE - 1) & ~(PAGE_SIZE-1);
+    u64 kernel_size = (kernel_code_size + STACK_SIZE + 2*PAGE_SIZE - 1) & ~(PAGE_SIZE-1);
+    u64 kernel_pages = kernel_size / PAGE_SIZE;
+    for (u64 i = 0; i < kernel_pages; ++i) {
+        u64 addr = KERNEL_ADDR + i * PAGE_SIZE;
         map_page(addr, addr);
     }
 
-
-    u64 frame_buffer_size = boot_data->fb.height * boot_data->fb.width * sizeof(u32);
-    u64 frame_buffer_pages = (frame_buffer_size + PAGE_SIZE - 1) / PAGE_SIZE;
-    u64 frame_buffer_addr = (u64)boot_data->fb.base;
-    for (u64 addr = frame_buffer_addr; addr < (frame_buffer_addr + frame_buffer_pages * PAGE_SIZE); addr += PAGE_SIZE) {
-        map_page(addr, addr);
-    }
-
-    // 800 1280
-    printk("Height, wight: %u %u\n", boot_data->fb.height, boot_data->fb.width);
-    map_page((u64)boot_data->fb.base, (u64)boot_data->fb.base);
     printk("Turning on Virtual memory\n");
 
+    map_page((u64)0xB0, (u64)0xB0);
+    map_page((u64)0xFEE00000, (u64)0xFEE00000);
+    setup_interrupt_table(boot_data);
     turn_on_virtual_memory(vmm_get_base());
-    printk("Frame buffer is now mapped!");
-
-    (void)*(volatile u64*)boot_data->fb.base;
-    //printk("Page table base: %x \n", page_table_base);
-
-    //map_page((u64)0x100000, (u64)0x100000);
-    //map_page((u64)0x101000, (u64)0x101000);
-    //map_page((u64)0xB0, (u64)0xB0);
-    //map_page((u64)0xFEE00000, (u64)0xFEE00000);
-    //map_page((u64)global_boot_data->fb.base, (u64)global_boot_data->fb.base, 1);
-    //u64 virt = (u64)global_boot_data->fb.base;
-
-    //u64 first_table_i = (virt >> 39) & 0x1FF;
-    //u64 second_table_i = (virt >> 30) & 0x1FF;
-    //u64 third_table_i = (virt >> 21) & 0x1FF;
-    //u64 fourth_table_i = (virt >> 12) & 0x1FF;
-
-    //printk("===========================\n");
-
-    //printk("Virtual adddress: %x\n", virt);
-    //printk("First table idx: %u\n", first_table_i);
-    //printk("Second table idx: %u\n", second_table_i);
-    //printk("Third table idx: %u\n", third_table_i);
-    //printk("Fourth table idx: %u\n", fourth_table_i);
-
-    //#define PAGE_ADDR_MASK (~0xFFFULL)
-
-    //u64* first_table_val  = (u64*)(page_table_base[first_table_i]  & PAGE_ADDR_MASK);
-    //u64* second_table_val = (u64*)(first_table_val[second_table_i] & PAGE_ADDR_MASK);
-    //u64* third_table_val  = (u64*)(second_table_val[third_table_i] & PAGE_ADDR_MASK);
-
-    //printk("First table val:  %x\n", first_table_val);
-    //printk("Second table val: %x\n", second_table_val);
-    //printk("Third table val:  %x\n", third_table_val);
-    //printk("Physical address: %x\n", third_table_val[fourth_table_i]);
-
-    //printk("Page table base: %x \n", page_table_base);
-    //printk("Frame buffer base: %x \n", global_boot_data->fb.base);
-    //printk("Finished\n");
-
-    //*((byte*)0x11)  = 10;
-
-    //asm volatile("hlt");
-
-    //setup_interrupt_table(boot_data);
+    printk("Frame buffer is now mapped!\n");
+    printk("Kernel size: %u\n", boot_data->kernel_size);
+    printk("Kernel size: %u\n", kernel_size);
 
     //printk("Boot data memory location: %x \n", reserved_memory);
 

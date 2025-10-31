@@ -28,4 +28,5 @@ typedef struct PACK {
 typedef struct PACK {
     FramebufferInfo fb;
     RSDP* rsdp;
+    u64 kernel_size;
 } BootData;

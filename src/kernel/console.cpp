@@ -2,8 +2,21 @@
 #include "kernel/console.hpp"
 #include "shared/types.h"
 #include "kernel/font.hpp"
+#include "kernel/virtual_memory_mapper.hpp"
+#include "kernel/physical_memory_mapper.hpp"
 
-void console_set_fb(FramebufferInfo *p) { fb = *p; }
+void console_init(FramebufferInfo *p) {
+    fb = *p;
+
+    u64 frame_buffer_size = fb.height * fb.width * sizeof(u32);
+    u64 frame_buffer_pages = (frame_buffer_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    u64 frame_buffer_addr = (u64)fb.base;
+
+    for (u64 i = 0; i < frame_buffer_pages; ++i) {
+        u64 addr = frame_buffer_addr + i * PAGE_SIZE;
+        map_page(addr, addr);
+    }
+}
 
 void putpx(u64 x, u64 y, u32 col) {
     uint32_t *base = (uint32_t*)fb.base;

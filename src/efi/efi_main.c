@@ -123,6 +123,7 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     uefi_call_wrapper(volume->Open, 5, volume, &kernel_handle, kernel_file_name, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY | EFI_FILE_HIDDEN | EFI_FILE_SYSTEM);
 
     u64 kernel_size = file_size(kernel_handle);
+    boot_dt->kernel_size = kernel_size;
     u64 *buffer     = AllocatePool(kernel_size);
 
     uefi_call_wrapper(kernel_handle->Read, 3, kernel_handle, &kernel_size, buffer);

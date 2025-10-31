@@ -24,35 +24,21 @@ static u64* get_or_alloc_next(u64* table, u64 index) {
     return next_table_address;
 }
 
-void map_page(u64 virt, u64 phys, u32 log) {
+void map_page(u64 virt, u64 phys) {
     u64 page_global_dir_i = (virt >> 39) & 0x1FF;
     u64 page_upper_dir_i = (virt >> 30) & 0x1FF;
     u64 page_middle_dir_i = (virt >> 21) & 0x1FF;
     u64 page_table_i = (virt >> 12) & 0x1FF;
 
-    if (log) printk("page global dir i: %u\n", page_global_dir_i);
-    if (log) printk("page upper dir i: %u\n", page_upper_dir_i);
-    if (log) printk("page middle dir i: %u\n", page_middle_dir_i);
-    if (log) printk("page table i: %u\n", page_table_i);
-
     u64* page_upper_dir = get_or_alloc_next(page_global_directory, page_global_dir_i);
-    if (log) printk("page upper dir addr: %x\n", (u64)page_upper_dir);
     u64* page_middle_dir = get_or_alloc_next(page_upper_dir, page_upper_dir_i);
-    if (log) printk("page middle dir addr: %x\n", page_middle_dir);
     u64* page_table = get_or_alloc_next(page_middle_dir, page_middle_dir_i);
-    if (log) printk("page table addr: %x\n", page_table);
 
     u64 page_table_entry = phys;
     page_table_entry |= PAGE_TABLE_ENTRY_PRESENT_BIT;
     page_table_entry |= PAGE_TABLE_ENTRY_READ_WRITE_BIT;
 
     page_table[page_table_i] = page_table_entry;
-}
-
-static void map_reserved_pages() {
-    for (u64 addr = 0x0; addr < RESERVED; addr += PAGE_SIZE) {
-        map_page(addr, addr);
-    }
 }
 
 void vmm_init() {
@@ -74,7 +60,6 @@ void vmm_init() {
     vm_range_table.base = vm_range;
     vm_range_table.count = 2;
     vm_range_table.capacity = VM_RANGE_SIZE / sizeof(VmRange);
-    //map_reserved_pages();
 }
 
 u64* vmm_get_base() {
