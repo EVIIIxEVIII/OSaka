@@ -90,12 +90,12 @@ void setup_keyboard(const APICEntryIOAPIC* io_apic, const APICEntryLocalAPIC* la
     uintptr_t ioapic_base = io_apic->io_apic_address;
 
     uint64_t rte = 0;
-    rte |= vector;                    // bits 0–7: vector
-    rte |= (0ULL << 8);               // bits 8–10: delivery mode = Fixed
-    rte |= (0ULL << 11);              // bit 11: destination mode = Physical
-    rte |= (0ULL << 13);              // bit 13: polarity = 0 (active-high)
-    rte |= (0ULL << 15);              // bit 15: trigger = 0 (edge)
-    rte |= (0ULL << 16);              // bit 16: mask = 0 (unmasked)
+    rte |= vector;                      // bits 0–7: vector
+    rte |= (0ULL << 8);                 // bits 8–10: delivery mode = Fixed
+    rte |= (0ULL << 11);                // bit 11: destination mode = Physical
+    rte |= (0ULL << 13);                // bit 13: polarity = 0 (active-high)
+    rte |= (0ULL << 15);                // bit 15: trigger = 0 (edge)
+    rte |= (0ULL << 16);                // bit 16: mask = 0 (unmasked)
     rte |= ((u64)lapic->apic_id << 56); // bits 56–63: destination APIC ID
 
     write_ioapic_register(ioapic_base, 0x10 + 2 * irq,     (uint32_t)rte);
@@ -218,10 +218,6 @@ extern "C" void kmain(BootData* temp_boot_data) {
     turn_on_virtual_memory(vmm_get_base());
 
     printk("Frame buffer is now mapped!\n");
-    //printk("Kernel size: %u\n", boot_data->kernel_size);
-    //printk("Kernel size: %u\n", kernel_size);
-
-    //printk("Boot data memory location: %x \n", reserved_memory);
 
     //byte* virtual_memory = vmm_map(10);
     //if (!virtual_memory) {
@@ -232,7 +228,6 @@ extern "C" void kmain(BootData* temp_boot_data) {
 
     //byte* page_table_base = vmm_get_base();
     //printk("Page table base: %x \n", page_table_base);
-
 
     for (;;) { asm volatile("hlt"); }
 }
