@@ -10,3 +10,5 @@ A small OS written from scratch booted by a custom UEFI bootloader.
 - [ ] Basic network stack with a custom Realtek 8139 driver
 - [ ] Discover and setup multiple cores
 - [ ] Add the posibility to run code on multiple cores
+- [ ] Basic benchmarking capabilities
+- [ ] A file system to save benchmark results to the USB drive the OS is booted from
