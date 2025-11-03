@@ -219,6 +219,10 @@ extern "C" void kmain(BootData* temp_boot_data) {
 
     printk("Frame buffer is now mapped!\n");
 
+    volatile byte* page = pmm_alloc(1);
+    map_page((u64)page, (u64)page);
+    //vmm_identity_map((u64)page, PAGE_SIZE);
+
     //byte* virtual_memory = vmm_map(10);
     //if (!virtual_memory) {
     //    printk("Failed to allocate virtual memory!\n");

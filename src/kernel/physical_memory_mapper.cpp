@@ -47,9 +47,9 @@ byte* pmm_alloc(u64 size) {
     }
 
     byte* address = (byte*)(segment_start * PAGE_SIZE);
-    for (u64 i = 0; i < pages * PAGE_SIZE; ++i) {
-        address[i] = 0x0;
-    }
+    //for (u64 i = 0; i < pages * PAGE_SIZE; ++i) {
+    //    address[i] = 0x0;
+    //}
 
     return address;
 }

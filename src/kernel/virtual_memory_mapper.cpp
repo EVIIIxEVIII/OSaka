@@ -28,13 +28,13 @@ static u64* get_or_alloc_next(u64* table, u64 index) {
 
 void map_page(u64 virt, u64 phys) {
     u64 page_global_dir_i = (virt >> 39) & 0x1FF;
-    u64 page_upper_dir_i = (virt >> 30) & 0x1FF;
+    u64 page_upper_dir_i  = (virt >> 30) & 0x1FF;
     u64 page_middle_dir_i = (virt >> 21) & 0x1FF;
-    u64 page_table_i = (virt >> 12) & 0x1FF;
+    u64 page_table_i      = (virt >> 12) & 0x1FF;
 
-    u64* page_upper_dir = get_or_alloc_next(page_global_directory, page_global_dir_i);
+    u64* page_upper_dir  = get_or_alloc_next(page_global_directory, page_global_dir_i);
     u64* page_middle_dir = get_or_alloc_next(page_upper_dir, page_upper_dir_i);
-    u64* page_table = get_or_alloc_next(page_middle_dir, page_middle_dir_i);
+    u64* page_table      = get_or_alloc_next(page_middle_dir, page_middle_dir_i);
 
     u64 page_table_entry = phys;
     page_table_entry |= PAGE_TABLE_ENTRY_PRESENT_BIT;
@@ -43,7 +43,7 @@ void map_page(u64 virt, u64 phys) {
     page_table[page_table_i] = page_table_entry;
 }
 
-void vmm_reserve(u64 addr, u64 size) {
+void vmm_identity_map(u64 addr, u64 size) {
     u64 aligned_addr = addr & ~(PAGE_SIZE - 1);
     u64 aligned_size = MEM_ALIGN(size + (addr - aligned_addr));
 
@@ -77,25 +77,25 @@ void vmm_reserve(u64 addr, u64 size) {
     }
 }
 
-void vmm_identity_map(u64 addr, u64 size) {
-    u64 aligned_addr = addr & ~(PAGE_SIZE - 1);
-    u64 aligned_size = MEM_ALIGN(size + (addr - aligned_addr));
-    vmm_reserve(addr, size);
-
-    for (u64 i = 0; i < aligned_size / PAGE_SIZE; ++i) {
-        u64 addr = aligned_addr + (i * PAGE_SIZE);
-        map_page(addr, addr);
-    }
-}
+//void vmm_identity_map(u64 addr, u64 size) {
+//    u64 aligned_addr = addr & ~(PAGE_SIZE - 1);
+//    u64 aligned_size = MEM_ALIGN(size + (addr - aligned_addr));
+//    vmm_reserve(addr, size);
+//
+//    for (u64 i = 0; i < aligned_size / PAGE_SIZE; ++i) {
+//        u64 addr = aligned_addr + (i * PAGE_SIZE);
+//        map_page(addr, addr);
+//    }
+//}
 
 void vmm_init() {
     page_global_directory = (u64*)pmm_alloc(4096);
 
     VmRange* vm_range = (VmRange*)pmm_alloc(VM_RANGE_SIZE);
-    for (u64 j = 0; j < VM_RANGE_SIZE / PAGE_SIZE; ++j) {
-        u64 addr = (u64)vm_range + (j * PAGE_SIZE);
-        map_page(addr, addr);
-    }
+    //for (u64 j = 0; j < VM_RANGE_SIZE / PAGE_SIZE; ++j) {
+    //    u64 addr = (u64)vm_range + (j * PAGE_SIZE);
+    //    map_page(addr, addr);
+    //}
 
     vm_range->start = 0x0;
     vm_range->end = (u64)(1ULL << 48);
@@ -106,7 +106,7 @@ void vmm_init() {
     vm_range_table.count = 1;
     vm_range_table.capacity = VM_RANGE_SIZE / sizeof(VmRange);
 
-    vmm_reserve((u64)vm_range, VM_RANGE_SIZE);
+    vmm_identity_map((u64)vm_range, VM_RANGE_SIZE);
 }
 
 u64* vmm_get_base() {
