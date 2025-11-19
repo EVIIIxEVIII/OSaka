@@ -3,8 +3,10 @@
 #include "kernel/physical_memory_mapper.hpp"
 #include <assert.h>
 
-#define VM_RANGE_SIZE (PAGE_SIZE * 10)
-#define MEM_ALIGN(addr) ((addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))
+constexpr u64 VM_RANGE_SIZE = (PAGE_SIZE * 10);
+constexpr u64 MEM_ALIGN(u64 addr) {
+    return ((addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+}
 
 static VmRangeTable vm_range_table{};
 static u64* page_global_directory;
@@ -112,7 +114,6 @@ void vmm_init() {
 u64* vmm_get_base() {
     return (u64*)page_global_directory;
 }
-
 
 static VmRange find_vm_range(u64 size) {
     VmRange* current;

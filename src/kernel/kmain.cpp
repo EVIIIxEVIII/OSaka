@@ -8,8 +8,8 @@
 #include "kernel/virtual_memory_mapper.hpp"
 
 BootData* global_boot_data;
-#define KERNEL_ADDR 0x100000
-#define STACK_SIZE 32768
+constexpr u64 KERNEL_ADDR = 0x100000;
+constexpr u64 STACK_SIZE = 32768;
 
 extern "C" void set_idt_gate(u8 vec, void* handler, u16 selector, u8 type_attr);
 extern "C" void load_idt();
@@ -17,10 +17,9 @@ extern "C" void load_gdt64();
 extern "C" void keyboard_stub();
 extern "C" void page_fault_stub();
 
-#define LAPIC_BASE 0xFEE00000
 static inline uint8_t inb(uint16_t port) {
     uint8_t value;
-    __asm__ __volatile__ (
+    asm volatile (
         "in al, dx"
         : "=a"(value)
         : "d"(port)
@@ -29,7 +28,7 @@ static inline uint8_t inb(uint16_t port) {
 }
 
 static inline void outb(u16 port, u8 value) {
-    __asm__ volatile (
+    asm volatile (
         "out dx, al"
         :
         : "d"(port), "a"(value)
@@ -52,33 +51,29 @@ u64 compare_mem(const void* dest, const void* src, u64 count) {
 
 void write_ioapic_register(const uintptr_t apic_base, const uint8_t offset, const uint32_t val)
 {
-    /* tell IOREGSEL where we want to write to */
     *(volatile uint32_t*)(apic_base) = offset;
-    /* write the value to IOWIN */
     *(volatile uint32_t*)(apic_base + 0x10) = val;
 }
 
 uint32_t read_ioapic_register(const uintptr_t apic_base, const uint8_t offset)
 {
-    /* tell IOREGSEL where we want to read from */
     *(volatile uint32_t*)(apic_base) = offset;
-    /* return the data from IOWIN */
     return *(volatile uint32_t*)(apic_base + 0x10);
 }
 
 static inline uint64_t rdmsr(uint32_t msr) {
-    uint32_t lo, hi;
-    __asm__ volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msr));
+    u32 lo, hi;
+    asm volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msr));
     return ((uint64_t)hi << 32) | lo;
 }
 
 uintptr_t get_lapic_base(void) {
-    uint64_t val = rdmsr(0x1B);           // IA32_APIC_BASE
+    u64 val = rdmsr(0x1B);           // IA32_APIC_BASE
     return (uintptr_t)(val & 0xFFFFF000); // bits 12–51 = physical base
 }
 
 static inline void lapic_eoi(void) {
-    uint64_t apic_base = LAPIC_BASE;
+    u64 apic_base = get_lapic_base();
 
     volatile uint32_t *lapic = (volatile uint32_t *)(apic_base);
     lapic[0xB0 / 4] = 0;
@@ -135,7 +130,7 @@ BootData* copy_boot_data(BootData* boot_data, byte* memory) {
 }
 
 void setup_interrupt_table(BootData* boot_data) {
-    __asm__ __volatile__("cli");
+    asm volatile("cli");
     load_gdt64();
 
     RSDP* rsdp = boot_data->rsdp;
@@ -157,12 +152,12 @@ void setup_interrupt_table(BootData* boot_data) {
     setup_keyboard(&io_apic, &lapic);
 
     load_idt();
-    __asm__ __volatile__("sti");
+    asm volatile("sti");
 }
 
 void turn_on_virtual_memory(u64* page_table_base) {
     outb(0xE9, 'A');
-    __asm__ __volatile__(
+    asm volatile(
         "mov cr3, rax"
         :
         : "a"(page_table_base)
@@ -195,8 +190,10 @@ void walk_page_table(u64 virt) {
 }
 
 extern "C" void kmain(BootData* temp_boot_data) {
-    pmm_init();
-    vmm_init();
+    {
+        pmm_init();
+        vmm_init();
+    }
 
     byte* reserved_memory = pmm_alloc(10 * PAGE_SIZE);
     vmm_identity_map((u64)reserved_memory, 10 * PAGE_SIZE);
@@ -213,14 +210,14 @@ extern "C" void kmain(BootData* temp_boot_data) {
 
     printk("Turning on Virtual memory\n");
 
-    vmm_identity_map((u64)0xFEE00000, PAGE_SIZE);
+    vmm_identity_map((u64)get_lapic_base(), PAGE_SIZE);
     setup_interrupt_table(boot_data);
     turn_on_virtual_memory(vmm_get_base());
 
     printk("Frame buffer is now mapped!\n");
 
-    volatile byte* page = pmm_alloc(1);
-    map_page((u64)page, (u64)page);
+    //volatile byte* page = pmm_alloc(1);
+    //map_page((u64)page, (u64)page);
     //vmm_identity_map((u64)page, PAGE_SIZE);
 
     //byte* virtual_memory = vmm_map(10);
