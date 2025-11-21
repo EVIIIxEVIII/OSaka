@@ -24,7 +24,7 @@ EFI_OBJCOPY := -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym \
     -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-$(ARCH) --subsystem=10
 
 K_CFLAGS := -Iinc -ffreestanding -fno-pic -fno-stack-protector -mno-red-zone \
-    -Wall -Wextra -masm=intel -mno-red-zone
+    -fno-exceptions -fno-rtti -Wall -Wextra -masm=intel -mno-red-zone -std=c++20
 K_LDS    := $(KSRC)/kernel.ld
 
 EFI_SRCS := $(wildcard $(EFISRC)/*.c)

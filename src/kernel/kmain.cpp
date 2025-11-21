@@ -7,7 +7,9 @@
 #include "kernel/physical_memory_mapper.hpp"
 #include "kernel/virtual_memory_mapper.hpp"
 
-BootData* global_boot_data;
+#include <optional>
+
+std::optional<BootData*> global_boot_data;
 constexpr u64 KERNEL_ADDR = 0x100000;
 constexpr u64 STACK_SIZE = 32768;
 
@@ -210,11 +212,20 @@ extern "C" void kmain(BootData* temp_boot_data) {
 
     printk("Turning on Virtual memory\n");
 
+    //printk("510 entry: %x \n", get);
     vmm_identity_map((u64)get_lapic_base(), PAGE_SIZE);
     setup_interrupt_table(boot_data);
     turn_on_virtual_memory(vmm_get_base());
 
     printk("Frame buffer is now mapped!\n");
+
+    volatile u64 test = *(u64*)(
+        (510LL << 39) |
+        (510LL << 30) |
+        (510LL << 21) |
+        (510LL << 12)
+    );
+    printk("Test: %x\n", test);
 
     //volatile byte* page = pmm_alloc(1);
     //map_page((u64)page, (u64)page);
